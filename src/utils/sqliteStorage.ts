@@ -1,3 +1,4 @@
+
 import initSqlJs, { Database } from 'sql.js';
 import { SecurityQuestion } from '../components/auth/SecurityQuestionsSetup';
 import { PasswordEntry, BaseField, CredentialType } from './storage';
@@ -94,7 +95,7 @@ class SQLiteStorage {
    * Ensures the database is ready before performing operations
    * @returns Whether the database is ready
    */
-  private async ensureDbReady(): Promise<boolean> {
+  public async ensureDbReady(): Promise<boolean> {
     if (!this.initialized) {
       try {
         await this.initializationPromise;
