@@ -3,15 +3,20 @@ import { createContext, useState, useContext, ReactNode } from 'react';
 import { hashMasterPassword, verifyMasterPassword } from '../utils/encryption';
 import { storageService } from '../utils/storage';
 import { useToast } from '@/components/ui/use-toast';
+import { SecurityQuestion } from '@/components/auth/SecurityQuestionsSetup';
 
 interface AuthContextType {
   isAuthenticated: boolean;
   isSetup: boolean;
+  hasSecurityQuestions: boolean;
   setupMasterPassword: (password: string) => boolean;
+  setupSecurityQuestions: (questions: SecurityQuestion[]) => boolean;
+  getSecurityQuestions: () => SecurityQuestion[] | null;
   login: (password: string) => boolean;
   logout: () => void;
   resetVault: () => void;
   updateMasterPassword: (currentPassword: string, newPassword: string) => boolean;
+  resetPasswordWithSecurityQuestions: (newPassword: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,6 +26,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
   
   const isSetup = storageService.hasMasterPasswordSetup();
+  const hasSecurityQuestions = storageService.hasSecurityQuestions();
 
   const setupMasterPassword = (password: string): boolean => {
     try {
@@ -48,6 +54,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         variant: "destructive",
       });
       return false;
+    }
+  };
+
+  const setupSecurityQuestions = (questions: SecurityQuestion[]): boolean => {
+    try {
+      // Store the security questions
+      const success = storageService.saveSecurityQuestions(questions);
+      
+      if (success) {
+        toast({
+          title: "Security questions set",
+          description: "Your security questions have been saved successfully.",
+        });
+      }
+      
+      return success;
+    } catch (error) {
+      console.error('Error setting up security questions:', error);
+      toast({
+        title: "Error setting up security questions",
+        description: "Failed to save your security questions. Please try again.",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+  
+  const getSecurityQuestions = (): SecurityQuestion[] | null => {
+    try {
+      return storageService.getSecurityQuestions();
+    } catch (error) {
+      console.error('Error getting security questions:', error);
+      return null;
     }
   };
 
@@ -169,15 +208,54 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return false;
     }
   };
+  
+  const resetPasswordWithSecurityQuestions = (newPassword: string): boolean => {
+    try {
+      // Update the master password hash
+      const newHash = hashMasterPassword(newPassword);
+      storageService.storeMasterPasswordHash(newHash);
+      
+      // Set the new master password for encryption/decryption
+      storageService.setMasterPassword(newPassword);
+      
+      // Try to decrypt passwords with new password (they might be corrupted)
+      try {
+        storageService.getPasswords();
+      } catch (e) {
+        // If decryption fails, initialize with empty array
+        storageService.savePasswords([]);
+      }
+      
+      setIsAuthenticated(true);
+      
+      toast({
+        title: "Password reset successful",
+        description: "Your master password has been reset. You can now access your vault.",
+      });
+      return true;
+    } catch (error) {
+      console.error('Error resetting password with security questions:', error);
+      toast({
+        title: "Error",
+        description: "Failed to reset master password. Please try again.",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
 
   const value = {
     isAuthenticated,
     isSetup,
+    hasSecurityQuestions,
     setupMasterPassword,
+    setupSecurityQuestions,
+    getSecurityQuestions,
     login,
     logout,
     resetVault,
-    updateMasterPassword
+    updateMasterPassword,
+    resetPasswordWithSecurityQuestions
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

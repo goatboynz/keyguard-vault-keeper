@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Eye, EyeOff, Shield, Lock } from 'lucide-react';
 import { evaluatePasswordStrength, getPasswordStrengthLabel } from '@/utils/encryption';
+import SecurityQuestionsSetup, { SecurityQuestion } from './SecurityQuestionsSetup';
 
 const MasterPasswordSetup = () => {
   const [password, setPassword] = useState<string>('');
@@ -13,7 +14,9 @@ const MasterPasswordSetup = () => {
   const [passwordVisible, setPasswordVisible] = useState<boolean>(false);
   const [confirmVisible, setConfirmVisible] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const { setupMasterPassword } = useAuth();
+  const [step, setStep] = useState<'password' | 'security-questions'>('password');
+  
+  const { setupMasterPassword, setupSecurityQuestions } = useAuth();
   
   const passwordStrength = evaluatePasswordStrength(password);
   const passwordLabel = getPasswordStrengthLabel(passwordStrength);
@@ -29,7 +32,7 @@ const MasterPasswordSetup = () => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validation
@@ -55,10 +58,34 @@ const MasterPasswordSetup = () => {
     
     // Setup master password
     const success = setupMasterPassword(password);
-    if (!success) {
+    if (success) {
+      setStep('security-questions');
+      setError(null);
+    } else {
       setError('Failed to set up master password. Please try again.');
     }
   };
+  
+  const handleSecurityQuestionsComplete = (questions: SecurityQuestion[]) => {
+    const success = setupSecurityQuestions(questions);
+    if (!success) {
+      setError('Failed to save security questions. Please try again.');
+    }
+  };
+  
+  const handleSkipSecurityQuestions = () => {
+    // User can skip security questions, but they won't be able to recover their password
+    console.log("Security questions setup skipped");
+  };
+
+  if (step === 'security-questions') {
+    return (
+      <SecurityQuestionsSetup 
+        onComplete={handleSecurityQuestionsComplete} 
+        onSkip={handleSkipSecurityQuestions}
+      />
+    );
+  }
 
   return (
     <div className="w-full max-w-md mx-auto animate-fade-in">
@@ -77,7 +104,7 @@ const MasterPasswordSetup = () => {
         </Alert>
       )}
       
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handlePasswordSubmit}>
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
             <label htmlFor="password" className="block text-sm font-medium">Master Password</label>
@@ -174,7 +201,7 @@ const MasterPasswordSetup = () => {
         </div>
         
         <Button type="submit" className="w-full bg-vault-accent hover:bg-vault-accent/90">
-          Create Vault
+          Continue
         </Button>
       </form>
     </div>

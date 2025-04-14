@@ -17,9 +17,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, ShieldQuestion } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { evaluatePasswordStrength, getPasswordStrengthLabel } from '@/utils/encryption';
+import { SecurityQuestion } from '../auth/SecurityQuestionsSetup';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 
 const passwordFormSchema = z.object({
   currentPassword: z.string().min(1, {
@@ -40,11 +43,15 @@ type PasswordFormValues = z.infer<typeof passwordFormSchema>;
 
 const SecuritySettings = () => {
   const { toast } = useToast();
-  const { logout, resetVault, updateMasterPassword } = useAuth();
+  const { logout, resetVault, updateMasterPassword, hasSecurityQuestions, getSecurityQuestions, setupSecurityQuestions } = useAuth();
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [autoLockEnabled, setAutoLockEnabled] = useState(true);
+  const [securityQuestions, setSecurityQuestions] = useState<SecurityQuestion[]>(
+    getSecurityQuestions() || []
+  );
+  const [dialogOpen, setDialogOpen] = useState(false);
   
   const form = useForm<PasswordFormValues>({
     resolver: zodResolver(passwordFormSchema),
@@ -95,6 +102,40 @@ const SecuritySettings = () => {
     if (confirmed) {
       // Reset the vault and log out
       resetVault();
+    }
+  }
+  
+  function handleQuestionChange(index: number, value: string) {
+    const updated = [...securityQuestions];
+    updated[index].question = value;
+    setSecurityQuestions(updated);
+  }
+  
+  function handleAnswerChange(index: number, value: string) {
+    const updated = [...securityQuestions];
+    updated[index].answer = value;
+    setSecurityQuestions(updated);
+  }
+  
+  function handleSaveSecurityQuestions() {
+    // Validate questions
+    const emptyQuestions = securityQuestions.filter(q => !q.question.trim() || !q.answer.trim());
+    if (emptyQuestions.length > 0) {
+      toast({
+        title: "Incomplete security questions",
+        description: "Please provide both questions and answers for all security questions.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const success = setupSecurityQuestions(securityQuestions);
+    if (success) {
+      setDialogOpen(false);
+      toast({
+        title: "Security questions updated",
+        description: "Your security questions have been saved successfully.",
+      });
     }
   }
   
@@ -231,6 +272,87 @@ const SecuritySettings = () => {
               <Button type="submit">Update Password</Button>
             </form>
           </Form>
+        </CardContent>
+      </Card>
+      
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle>Security Questions</CardTitle>
+            <CardDescription>
+              Set up security questions for password recovery
+            </CardDescription>
+          </div>
+          <ShieldQuestion className="h-5 w-5 text-muted-foreground" />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm">
+            {hasSecurityQuestions 
+              ? "You have set up security questions for password recovery."
+              : "You haven't set up security questions yet. Setting up security questions will allow you to recover your vault if you forget your master password."
+            }
+          </p>
+          
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                {hasSecurityQuestions ? "Edit Security Questions" : "Set Up Security Questions"}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Security Questions</DialogTitle>
+                <DialogDescription>
+                  Set up 5 security questions to help recover your password if forgotten.
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-6 max-h-[60vh] overflow-y-auto py-2">
+                {securityQuestions.length === 0 ? (
+                  // Initialize with 5 empty questions if none exist
+                  Array.from({ length: 5 }).map((_, index) => {
+                    const newQuestions = [...securityQuestions];
+                    newQuestions[index] = { question: '', answer: '' };
+                    setSecurityQuestions(newQuestions);
+                    return null;
+                  })
+                ) : (
+                  securityQuestions.map((q, index) => (
+                    <div key={index} className="space-y-2">
+                      <div>
+                        <Label htmlFor={`question-${index}`}>Question {index + 1}</Label>
+                        <Input
+                          id={`question-${index}`}
+                          value={q.question}
+                          onChange={(e) => handleQuestionChange(index, e.target.value)}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor={`answer-${index}`}>Answer</Label>
+                        <Input
+                          id={`answer-${index}`}
+                          value={q.answer}
+                          onChange={(e) => handleAnswerChange(index, e.target.value)}
+                          className="mt-1"
+                          placeholder="Your answer"
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              
+              <DialogFooter>
+                <Button type="button" variant="secondary" onClick={() => setDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="button" onClick={handleSaveSecurityQuestions}>
+                  Save
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </CardContent>
       </Card>
       

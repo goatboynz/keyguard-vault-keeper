@@ -5,12 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Eye, EyeOff, Lock, ShieldCheck } from 'lucide-react';
+import PasswordRecovery from './PasswordRecovery';
 
 const Login = () => {
   const [password, setPassword] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { login } = useAuth();
+  const [showRecovery, setShowRecovery] = useState(false);
+  const { login, hasSecurityQuestions } = useAuth();
   
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,6 +27,10 @@ const Login = () => {
       setError('Invalid master password. Please try again.');
     }
   };
+  
+  if (showRecovery) {
+    return <PasswordRecovery onCancel={() => setShowRecovery(false)} />;
+  }
   
   return (
     <div className="w-full max-w-md mx-auto animate-fade-in">
@@ -44,7 +50,7 @@ const Login = () => {
       )}
       
       <form onSubmit={handleSubmit}>
-        <div className="mb-8">
+        <div className="mb-6">
           <label htmlFor="password" className="block text-sm font-medium mb-2">
             Master Password
           </label>
@@ -78,9 +84,24 @@ const Login = () => {
         
         <div className="mb-6 bg-secondary/30 p-4 rounded-md border border-secondary flex items-start gap-3">
           <Lock className="h-5 w-5 text-yellow-400 mt-0.5 flex-shrink-0" />
-          <p className="text-xs text-vault-muted">
-            If you've forgotten your master password, there is no way to recover it. You'll need to reset your vault and start over.
-          </p>
+          <div className="space-y-2">
+            <p className="text-xs text-vault-muted">
+              {hasSecurityQuestions 
+                ? "Forgot your master password? You can reset it using your security questions."
+                : "If you've forgotten your master password, there is no way to recover it. You'll need to reset your vault and start over."
+              }
+            </p>
+            {hasSecurityQuestions && (
+              <Button 
+                type="button" 
+                variant="link" 
+                className="text-xs text-vault-accent p-0 h-auto"
+                onClick={() => setShowRecovery(true)}
+              >
+                Reset password with security questions
+              </Button>
+            )}
+          </div>
         </div>
         
         <Button type="submit" className="w-full bg-vault-accent hover:bg-vault-accent/90">
