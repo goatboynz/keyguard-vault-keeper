@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -5,7 +6,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { 
   Folder, Home, Settings, KeyRound, CreditCard, Shield, Briefcase, Package2, 
   BadgePercent, DoorClosed, Hash, KeySquare, Building2, Gamepad2, Wifi, Network,
-  Star, Plus
+  Star, Plus, ChevronLeft, ChevronRight, Mail, Globe, Smartphone, Video, MessageSquare
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePasswords } from '@/contexts/PasswordContext';
@@ -30,34 +31,32 @@ const Sidebar = ({ onAddPassword }: SidebarProps) => {
   const [isCollapsed, setIsCollapsed] = useState(isMobile);
   const { 
     categories, 
-    subcategories,
-    selectCategory, 
-    selectSubcategory,
     selectedCategory,
-    selectedSubcategory
+    selectedSubcategory,
+    selectCategory, 
+    selectSubcategory
   } = usePasswords();
   
   useEffect(() => {
     setIsCollapsed(isMobile);
   }, [isMobile]);
 
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case 'Website': return <Globe className="h-4 w-4" />;
-      case 'App': return <Smartphone className="h-4 w-4" />;
+  const getCategoryIcon = (categoryName: string) => {
+    switch (categoryName) {
+      case 'Websites': return <Globe className="h-4 w-4" />;
       case 'Email': return <Mail className="h-4 w-4" />;
       case 'CCTV': return <Video className="h-4 w-4" />;
-      case 'Door Code': return <DoorClosed className="h-4 w-4" />;
-      case 'API Key': return <Hash className="h-4 w-4" />;
+      case 'Door Codes': return <DoorClosed className="h-4 w-4" />;
+      case 'API Keys': return <Hash className="h-4 w-4" />;
       case 'Software': return <Package2 className="h-4 w-4" />;
       case 'Financial': return <CreditCard className="h-4 w-4" />;
       case 'Social Media': return <MessageSquare className="h-4 w-4" />;
       case 'Gaming': return <Gamepad2 className="h-4 w-4" />;
       case 'Networking': return <Network className="h-4 w-4" />;
-      case 'Professional': return <Briefcase className="h-4 w-4" />;
-      case 'Digital': return <KeySquare className="h-4 w-4" />;
-      case 'Other': return <Folder className="h-4 w-4" />;
-      default: return <Folder className="h-4 w-4" />;
+      case 'Work': return <Briefcase className="h-4 w-4" />;
+      case 'Digital Access': return <KeySquare className="h-4 w-4" />;
+      case 'All': return <Folder className="h-4 w-4" />;
+      default: return <KeyRound className="h-4 w-4" />;
     }
   };
 
@@ -80,11 +79,11 @@ const Sidebar = ({ onAddPassword }: SidebarProps) => {
   ];
   
   const categoryItems: NavItem[] = categories.map(category => ({
-    title: category,
-    icon: getCategoryIcon(category),
+    title: category.name,
+    icon: getCategoryIcon(category.name),
     isCategory: true,
-    subcategories: subcategories[category] || [],
-    credentialType: category
+    subcategories: category.subcategories || [],
+    credentialType: category.credentialType
   }));
   
   const handleCategoryClick = (category: string) => {
@@ -242,10 +241,5 @@ const Sidebar = ({ onAddPassword }: SidebarProps) => {
     </div>
   );
 };
-
-import { 
-  ChevronLeft, ChevronRight, Mail, Globe, Smartphone, 
-  Video, MessageSquare 
-} from 'lucide-react';
 
 export default Sidebar;

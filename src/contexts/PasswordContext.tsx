@@ -26,6 +26,8 @@ interface PasswordContextType {
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   getCategoryByType: (credentialType: CredentialType) => CategoryDefinition | undefined;
+  selectCategory: (category: string) => void;
+  selectSubcategory: (subcategory: string) => void;
 }
 
 // Define all categories with their credential types
@@ -74,7 +76,6 @@ export const PasswordProvider = ({ children }: { children: ReactNode }) => {
   const { isAuthenticated } = useAuth();
   const { toast } = useToast();
 
-  // Load passwords from storage when authenticated
   useEffect(() => {
     if (isAuthenticated) {
       try {
@@ -97,7 +98,6 @@ export const PasswordProvider = ({ children }: { children: ReactNode }) => {
     return CATEGORIES.find(cat => cat.credentialType === credentialType);
   };
 
-  // CRUD operations
   const addPassword = (password: Omit<PasswordEntry, 'id' | 'lastModified'>): boolean => {
     try {
       const newPassword: PasswordEntry = {
@@ -201,6 +201,14 @@ export const PasswordProvider = ({ children }: { children: ReactNode }) => {
     return passwords.find(p => p.id === id);
   };
 
+  const selectCategory = (category: string): void => {
+    setSelectedCategory(category);
+  };
+
+  const selectSubcategory = (subcategory: string): void => {
+    setSelectedSubcategory(subcategory);
+  };
+
   const value = {
     passwords,
     addPassword,
@@ -215,6 +223,8 @@ export const PasswordProvider = ({ children }: { children: ReactNode }) => {
     searchTerm,
     setSearchTerm,
     getCategoryByType,
+    selectCategory,
+    selectSubcategory,
   };
 
   return <PasswordContext.Provider value={value}>{children}</PasswordContext.Provider>;
