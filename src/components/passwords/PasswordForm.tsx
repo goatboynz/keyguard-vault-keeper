@@ -9,6 +9,7 @@ import { Eye, EyeOff, RefreshCcw, Check, X, Shield, Plus, Trash } from 'lucide-r
 import { usePasswords, CATEGORIES, CategoryDefinition } from '@/contexts/PasswordContext';
 import { PasswordEntry, CredentialType, BaseField } from '@/utils/storage';
 import { generatePassword, evaluatePasswordStrength, getPasswordStrengthLabel } from '@/utils/encryption';
+import { useToast } from '@/components/ui/use-toast';
 
 interface PasswordFormProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ interface PasswordFormProps {
 
 const PasswordForm = ({ isOpen, onClose, editingId }: PasswordFormProps) => {
   const { addPassword, updatePassword, getPassword, getCategoryByType } = usePasswords();
+  const { toast } = useToast();
   
   const [title, setTitle] = useState('');
   const [username, setUsername] = useState('');
@@ -29,6 +31,7 @@ const PasswordForm = ({ isOpen, onClose, editingId }: PasswordFormProps) => {
   const [showPassword, setShowPassword] = useState(false);
   const [credentialType, setCredentialType] = useState<CredentialType>('website');
   const [customFields, setCustomFields] = useState<BaseField[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const selectedCategory = CATEGORIES.find(cat => cat.name === category);
   
@@ -146,23 +149,35 @@ const PasswordForm = ({ isOpen, onClose, editingId }: PasswordFormProps) => {
     setShowPassword(true);
   };
   
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!title || !category) {
-      alert('Please enter at least a title and category');
+      toast({
+        title: "Missing fields",
+        description: "Please enter at least a title and category",
+        variant: "destructive",
+      });
       return;
     }
     
     if (['website', 'email', 'app'].includes(credentialType) && (!username || !password)) {
-      alert('Please enter both username and password');
+      toast({
+        title: "Missing credentials",
+        description: "Please enter both username and password",
+        variant: "destructive",
+      });
       return;
     }
     
     if (customFields.length > 0) {
       const invalidFields = customFields.filter(field => !field.name || !field.value);
       if (invalidFields.length > 0) {
-        alert('Please fill out all custom fields');
+        toast({
+          title: "Incomplete fields",
+          description: "Please fill out all custom fields",
+          variant: "destructive",
+        });
         return;
       }
     }
@@ -179,16 +194,35 @@ const PasswordForm = ({ isOpen, onClose, editingId }: PasswordFormProps) => {
       customFields: customFields.length > 0 ? customFields : undefined
     };
     
-    let success = false;
+    setIsSubmitting(true);
     
-    if (editingId) {
-      success = updatePassword(editingId, passwordData);
-    } else {
-      success = addPassword(passwordData);
-    }
-    
-    if (success) {
-      onClose();
+    try {
+      let success = false;
+      
+      if (editingId) {
+        success = await updatePassword(editingId, passwordData);
+      } else {
+        success = await addPassword(passwordData);
+      }
+      
+      if (success) {
+        onClose();
+      } else {
+        toast({
+          title: "Operation failed",
+          description: "There was a problem saving your credential",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error saving credential:", error);
+      toast({
+        title: "Operation failed",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
   
@@ -505,13 +539,25 @@ const PasswordForm = ({ isOpen, onClose, editingId }: PasswordFormProps) => {
           </div>
           
           <div className="flex justify-end space-x-2 pt-2">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
               <X className="h-4 w-4 mr-1" />
               Cancel
             </Button>
-            <Button type="submit" className="bg-vault-accent hover:bg-vault-accent/90">
-              <Check className="h-4 w-4 mr-1" />
-              {editingId ? 'Update' : 'Save'}
+            <Button type="submit" className="bg-vault-accent hover:bg-vault-accent/90" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <span className="flex items-center">
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Saving...
+                </span>
+              ) : (
+                <>
+                  <Check className="h-4 w-4 mr-1" />
+                  {editingId ? 'Update' : 'Save'}
+                </>
+              )}
             </Button>
           </div>
         </form>

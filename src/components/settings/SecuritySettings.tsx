@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -48,13 +47,14 @@ const SecuritySettings = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [autoLockEnabled, setAutoLockEnabled] = useState(true);
+  const [isSecurityQuestionsLoading, setIsSecurityQuestionsLoading] = useState(true);
+  const [hasSetupQuestions, setHasSetupQuestions] = useState(false);
   
-  // Initialize with empty array if getSecurityQuestions returns null
-  const storedQuestions = getSecurityQuestions() || [];
   const [securityQuestions, setSecurityQuestions] = useState<SecurityQuestion[]>(
-    storedQuestions.length > 0 ? storedQuestions : Array(5).fill({ question: '', answer: '' })
+    Array(5).fill({ question: '', answer: '' })
   );
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [isSubmittingQuestions, setIsSubmittingQuestions] = useState(false);
   
   const form = useForm<PasswordFormValues>({
     resolver: zodResolver(passwordFormSchema),
@@ -64,6 +64,29 @@ const SecuritySettings = () => {
       confirmPassword: "",
     },
   });
+  
+  useEffect(() => {
+    const loadSecurityQuestions = async () => {
+      try {
+        setIsSecurityQuestionsLoading(true);
+        const hasQuestions = await hasSecurityQuestions();
+        setHasSetupQuestions(hasQuestions);
+        
+        if (hasQuestions) {
+          const questions = await getSecurityQuestions();
+          if (questions && Array.isArray(questions)) {
+            setSecurityQuestions(questions);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load security questions:", error);
+      } finally {
+        setIsSecurityQuestionsLoading(false);
+      }
+    };
+    
+    loadSecurityQuestions();
+  }, [hasSecurityQuestions, getSecurityQuestions]);
   
   const watchNewPassword = form.watch("newPassword");
   const passwordStrength = evaluatePasswordStrength(watchNewPassword);
@@ -80,7 +103,7 @@ const SecuritySettings = () => {
     }
   };
 
-  function onSubmit(data: PasswordFormValues) {
+  async function onSubmit(data: PasswordFormValues) {
     if (passwordStrength < 2) {
       toast({
         title: "Weak password",
@@ -90,21 +113,27 @@ const SecuritySettings = () => {
       return;
     }
     
-    const success = updateMasterPassword(data.currentPassword, data.newPassword);
+    const success = await updateMasterPassword(data.currentPassword, data.newPassword);
     if (success) {
       form.reset();
+      toast({
+        title: "Password updated",
+        description: "Your master password has been updated successfully.",
+      });
     }
   }
 
-  function handleResetVault() {
-    // Confirm with the user before resetting
+  async function handleResetVault() {
     const confirmed = window.confirm(
       "WARNING: This will permanently delete all saved passwords and reset your vault. This action cannot be undone. Are you sure you want to continue?"
     );
     
     if (confirmed) {
-      // Reset the vault and log out
-      resetVault();
+      await resetVault();
+      toast({
+        title: "Vault reset",
+        description: "Your vault has been reset. You will be logged out now.",
+      });
     }
   }
   
@@ -126,8 +155,7 @@ const SecuritySettings = () => {
     setSecurityQuestions(updated);
   }
   
-  function handleSaveSecurityQuestions() {
-    // Validate questions
+  async function handleSaveSecurityQuestions() {
     const emptyQuestions = securityQuestions.filter(q => !q.question.trim() || !q.answer.trim());
     if (emptyQuestions.length > 0) {
       toast({
@@ -138,13 +166,33 @@ const SecuritySettings = () => {
       return;
     }
     
-    const success = setupSecurityQuestions(securityQuestions);
-    if (success) {
-      setDialogOpen(false);
+    setIsSubmittingQuestions(true);
+    
+    try {
+      const success = await setupSecurityQuestions(securityQuestions);
+      if (success) {
+        setDialogOpen(false);
+        setHasSetupQuestions(true);
+        toast({
+          title: "Security questions updated",
+          description: "Your security questions have been saved successfully.",
+        });
+      } else {
+        toast({
+          title: "Failed to save questions",
+          description: "There was a problem saving your security questions.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error saving security questions:", error);
       toast({
-        title: "Security questions updated",
-        description: "Your security questions have been saved successfully.",
+        title: "Error",
+        description: "An unexpected error occurred.",
+        variant: "destructive",
       });
+    } finally {
+      setIsSubmittingQuestions(false);
     }
   }
   
@@ -295,63 +343,80 @@ const SecuritySettings = () => {
           <ShieldQuestion className="h-5 w-5 text-muted-foreground" />
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm">
-            {hasSecurityQuestions 
-              ? "You have set up security questions for password recovery."
-              : "You haven't set up security questions yet. Setting up security questions will allow you to recover your vault if you forget your master password."
-            }
-          </p>
-          
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline">
-                {hasSecurityQuestions ? "Edit Security Questions" : "Set Up Security Questions"}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle>Security Questions</DialogTitle>
-                <DialogDescription>
-                  Set up 5 security questions to help recover your password if forgotten.
-                </DialogDescription>
-              </DialogHeader>
+          {isSecurityQuestionsLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+              <span className="ml-2">Loading security questions...</span>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm">
+                {hasSetupQuestions 
+                  ? "You have set up security questions for password recovery."
+                  : "You haven't set up security questions yet. Setting up security questions will allow you to recover your vault if you forget your master password."
+                }
+              </p>
               
-              <div className="space-y-6 max-h-[60vh] overflow-y-auto py-2">
-                {securityQuestions.map((q, index) => (
-                  <div key={index} className="space-y-2">
-                    <div>
-                      <Label htmlFor={`question-${index}`}>Question {index + 1}</Label>
-                      <Input
-                        id={`question-${index}`}
-                        value={q?.question || ''}
-                        onChange={(e) => handleQuestionChange(index, e.target.value)}
-                        className="mt-1"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor={`answer-${index}`}>Answer</Label>
-                      <Input
-                        id={`answer-${index}`}
-                        value={q?.answer || ''}
-                        onChange={(e) => handleAnswerChange(index, e.target.value)}
-                        className="mt-1"
-                        placeholder="Your answer"
-                      />
-                    </div>
+              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    {hasSetupQuestions ? "Edit Security Questions" : "Set Up Security Questions"}
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[500px]">
+                  <DialogHeader>
+                    <DialogTitle>Security Questions</DialogTitle>
+                    <DialogDescription>
+                      Set up 5 security questions to help recover your password if forgotten.
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  <div className="space-y-6 max-h-[60vh] overflow-y-auto py-2">
+                    {securityQuestions.map((q, index) => (
+                      <div key={index} className="space-y-2">
+                        <div>
+                          <Label htmlFor={`question-${index}`}>Question {index + 1}</Label>
+                          <Input
+                            id={`question-${index}`}
+                            value={q?.question || ''}
+                            onChange={(e) => handleQuestionChange(index, e.target.value)}
+                            className="mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor={`answer-${index}`}>Answer</Label>
+                          <Input
+                            id={`answer-${index}`}
+                            value={q?.answer || ''}
+                            onChange={(e) => handleAnswerChange(index, e.target.value)}
+                            className="mt-1"
+                            placeholder="Your answer"
+                          />
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-              
-              <DialogFooter>
-                <Button type="button" variant="secondary" onClick={() => setDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="button" onClick={handleSaveSecurityQuestions}>
-                  Save
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                  
+                  <DialogFooter>
+                    <Button type="button" variant="secondary" onClick={() => setDialogOpen(false)} disabled={isSubmittingQuestions}>
+                      Cancel
+                    </Button>
+                    <Button type="button" onClick={handleSaveSecurityQuestions} disabled={isSubmittingQuestions}>
+                      {isSubmittingQuestions ? (
+                        <span className="flex items-center">
+                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Saving...
+                        </span>
+                      ) : "Save"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </>
+          )}
         </CardContent>
       </Card>
       

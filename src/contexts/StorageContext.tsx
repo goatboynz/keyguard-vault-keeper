@@ -16,8 +16,8 @@ export const StorageProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const initializeStorage = async () => {
       try {
-        // We need to wait a bit to make sure the SQLite WASM module loads
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        // We need to wait for the SQLite WASM module to load
+        await sqliteStorageService.initDatabase();
         setIsReady(true);
       } catch (error) {
         console.error('Failed to initialize storage:', error);

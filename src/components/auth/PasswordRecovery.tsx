@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,12 +27,19 @@ const PasswordRecovery = ({ onCancel }: PasswordRecoveryProps) => {
   const [step, setStep] = useState<'questions' | 'new-password'>('questions');
   const [securityQuestions, setSecurityQuestions] = useState<SecurityQuestion[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   useEffect(() => {
     const loadSecurityQuestions = async () => {
-      const questions = await getSecurityQuestions();
-      setSecurityQuestions(questions);
-      setLoading(false);
+      try {
+        const questions = await getSecurityQuestions();
+        setSecurityQuestions(questions);
+      } catch (error) {
+        console.error("Failed to load security questions:", error);
+        setError("Failed to load security questions. Please try again.");
+      } finally {
+        setLoading(false);
+      }
     };
     
     loadSecurityQuestions();
@@ -85,14 +91,28 @@ const PasswordRecovery = ({ onCancel }: PasswordRecoveryProps) => {
       return;
     }
     
-    const success = await resetPasswordWithSecurityQuestions(newPassword);
-    if (!success) {
-      setError('Failed to reset password. Please try again.');
+    setIsSubmitting(true);
+    
+    try {
+      const success = await resetPasswordWithSecurityQuestions(newPassword);
+      if (!success) {
+        setError('Failed to reset password. Please try again.');
+      }
+    } catch (error) {
+      console.error("Error resetting password:", error);
+      setError('An unexpected error occurred. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center">Loading security questions...</div>;
+    return (
+      <div className="flex items-center justify-center">
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mr-2"></div>
+        <span>Loading security questions...</span>
+      </div>
+    );
   }
 
   if (!securityQuestions || securityQuestions.length === 0) {
@@ -214,11 +234,19 @@ const PasswordRecovery = ({ onCancel }: PasswordRecoveryProps) => {
               </p>
             </CardContent>
             <CardFooter className="flex justify-between">
-              <Button type="button" variant="outline" onClick={() => setStep('questions')}>
+              <Button type="button" variant="outline" onClick={() => setStep('questions')} disabled={isSubmitting}>
                 Back
               </Button>
-              <Button type="submit">
-                Reset Password
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <span className="flex items-center">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Resetting...
+                  </span>
+                ) : "Reset Password"}
               </Button>
             </CardFooter>
           </form>
