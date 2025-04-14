@@ -48,8 +48,11 @@ const SecuritySettings = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [autoLockEnabled, setAutoLockEnabled] = useState(true);
+  
+  // Initialize with empty array if getSecurityQuestions returns null
+  const storedQuestions = getSecurityQuestions() || [];
   const [securityQuestions, setSecurityQuestions] = useState<SecurityQuestion[]>(
-    getSecurityQuestions() || []
+    storedQuestions.length > 0 ? storedQuestions : Array(5).fill({ question: '', answer: '' })
   );
   const [dialogOpen, setDialogOpen] = useState(false);
   
@@ -107,12 +110,18 @@ const SecuritySettings = () => {
   
   function handleQuestionChange(index: number, value: string) {
     const updated = [...securityQuestions];
+    if (!updated[index]) {
+      updated[index] = { question: '', answer: '' };
+    }
     updated[index].question = value;
     setSecurityQuestions(updated);
   }
   
   function handleAnswerChange(index: number, value: string) {
     const updated = [...securityQuestions];
+    if (!updated[index]) {
+      updated[index] = { question: '', answer: '' };
+    }
     updated[index].answer = value;
     setSecurityQuestions(updated);
   }
@@ -308,39 +317,29 @@ const SecuritySettings = () => {
               </DialogHeader>
               
               <div className="space-y-6 max-h-[60vh] overflow-y-auto py-2">
-                {securityQuestions.length === 0 ? (
-                  // Initialize with 5 empty questions if none exist
-                  Array.from({ length: 5 }).map((_, index) => {
-                    const newQuestions = [...securityQuestions];
-                    newQuestions[index] = { question: '', answer: '' };
-                    setSecurityQuestions(newQuestions);
-                    return null;
-                  })
-                ) : (
-                  securityQuestions.map((q, index) => (
-                    <div key={index} className="space-y-2">
-                      <div>
-                        <Label htmlFor={`question-${index}`}>Question {index + 1}</Label>
-                        <Input
-                          id={`question-${index}`}
-                          value={q.question}
-                          onChange={(e) => handleQuestionChange(index, e.target.value)}
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor={`answer-${index}`}>Answer</Label>
-                        <Input
-                          id={`answer-${index}`}
-                          value={q.answer}
-                          onChange={(e) => handleAnswerChange(index, e.target.value)}
-                          className="mt-1"
-                          placeholder="Your answer"
-                        />
-                      </div>
+                {securityQuestions.map((q, index) => (
+                  <div key={index} className="space-y-2">
+                    <div>
+                      <Label htmlFor={`question-${index}`}>Question {index + 1}</Label>
+                      <Input
+                        id={`question-${index}`}
+                        value={q?.question || ''}
+                        onChange={(e) => handleQuestionChange(index, e.target.value)}
+                        className="mt-1"
+                      />
                     </div>
-                  ))
-                )}
+                    <div>
+                      <Label htmlFor={`answer-${index}`}>Answer</Label>
+                      <Input
+                        id={`answer-${index}`}
+                        value={q?.answer || ''}
+                        onChange={(e) => handleAnswerChange(index, e.target.value)}
+                        className="mt-1"
+                        placeholder="Your answer"
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
               
               <DialogFooter>
