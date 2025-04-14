@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -10,7 +9,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePasswords } from '@/contexts/PasswordContext';
-import { useMobile } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface SidebarProps {
   onAddPassword?: () => void;
@@ -27,7 +26,7 @@ type NavItem = {
 
 const Sidebar = ({ onAddPassword }: SidebarProps) => {
   const location = useLocation();
-  const isMobile = useMobile();
+  const isMobile = useIsMobile();
   const [isCollapsed, setIsCollapsed] = useState(isMobile);
   const { 
     categories, 
@@ -42,7 +41,6 @@ const Sidebar = ({ onAddPassword }: SidebarProps) => {
     setIsCollapsed(isMobile);
   }, [isMobile]);
 
-  // Map credential types to appropriate icons
   const getCategoryIcon = (category: string) => {
     switch (category) {
       case 'Website': return <Globe className="h-4 w-4" />;
@@ -63,7 +61,6 @@ const Sidebar = ({ onAddPassword }: SidebarProps) => {
     }
   };
 
-  // Navigation items including general pages and categories
   const navItems: NavItem[] = [
     {
       title: "Dashboard",
@@ -80,10 +77,8 @@ const Sidebar = ({ onAddPassword }: SidebarProps) => {
       icon: <Folder className="h-4 w-4" />,
       isCategory: true
     },
-    // ... Add favorites, etc. if needed
   ];
   
-  // Dynamically add category items
   const categoryItems: NavItem[] = categories.map(category => ({
     title: category,
     icon: getCategoryIcon(category),
@@ -140,7 +135,6 @@ const Sidebar = ({ onAddPassword }: SidebarProps) => {
         
         <div className="flex-1 overflow-y-auto">
           <nav className="space-y-1">
-            {/* Main navigation items */}
             {navItems.map((item, index) => (
               item.path ? (
                 <NavLink
@@ -180,7 +174,6 @@ const Sidebar = ({ onAddPassword }: SidebarProps) => {
               ) : null
             ))}
             
-            {/* Category items */}
             {categoryItems.map((item, index) => (
               <div key={`category-${index}`}>
                 <button
@@ -211,7 +204,6 @@ const Sidebar = ({ onAddPassword }: SidebarProps) => {
                   )}
                 </button>
                 
-                {/* Subcategories - only show if category is selected and not collapsed */}
                 {!isCollapsed && selectedCategory === item.title && item.subcategories && item.subcategories.length > 0 && (
                   <div className="ml-6 mt-1 space-y-1">
                     <button
@@ -251,7 +243,6 @@ const Sidebar = ({ onAddPassword }: SidebarProps) => {
   );
 };
 
-// Missing import statements
 import { 
   ChevronLeft, ChevronRight, Mail, Globe, Smartphone, 
   Video, MessageSquare 

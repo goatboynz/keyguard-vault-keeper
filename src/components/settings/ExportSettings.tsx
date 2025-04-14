@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -105,8 +104,8 @@ const ExportSettings = () => {
                       <SelectContent>
                         <SelectItem value="All">All Passwords</SelectItem>
                         {categories.map((category) => (
-                          <SelectItem key={category} value={category}>
-                            {category}
+                          <SelectItem key={category.name} value={category.name}>
+                            {category.name}
                           </SelectItem>
                         ))}
                       </SelectContent>

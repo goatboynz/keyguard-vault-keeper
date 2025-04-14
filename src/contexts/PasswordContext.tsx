@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { storageService, PasswordEntry, CredentialType, BaseField } from '../utils/storage';
 import { useToast } from '@/components/ui/use-toast';
