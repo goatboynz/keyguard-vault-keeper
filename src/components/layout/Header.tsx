@@ -1,5 +1,6 @@
 
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, LogOut, Settings, Shield } from 'lucide-react';
@@ -14,6 +15,12 @@ const Header = () => {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setSearchTerm(searchInput);
+  };
+  
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchInput(value);
+    setSearchTerm(value); // Update search in real-time
   };
   
   return (
@@ -32,14 +39,16 @@ const Header = () => {
               placeholder="Search passwords..."
               className="pl-10 bg-vault-dark/50 border-gray-700"
               value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
+              onChange={handleSearchChange}
             />
           </div>
         </form>
         
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" title="Settings">
-            <Settings className="h-4 w-4" />
+          <Button variant="outline" size="icon" title="Settings" asChild>
+            <Link to="/settings">
+              <Settings className="h-4 w-4" />
+            </Link>
           </Button>
           <Button variant="ghost" size="icon" onClick={logout} title="Logout">
             <LogOut className="h-4 w-4" />

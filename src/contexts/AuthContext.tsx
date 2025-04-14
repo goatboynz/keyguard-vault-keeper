@@ -11,6 +11,7 @@ interface AuthContextType {
   login: (password: string) => boolean;
   logout: () => void;
   resetVault: () => void;
+  updateMasterPassword: (currentPassword: string, newPassword: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -116,6 +117,58 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
     }
   };
+  
+  const updateMasterPassword = (currentPassword: string, newPassword: string): boolean => {
+    try {
+      const storedHash = storageService.getMasterPasswordHash();
+      if (!storedHash) {
+        toast({
+          title: "Error",
+          description: "No vault found. Please set up a master password first.",
+          variant: "destructive",
+        });
+        return false;
+      }
+      
+      // Verify the current password
+      const isValid = verifyMasterPassword(currentPassword, storedHash);
+      if (!isValid) {
+        toast({
+          title: "Authentication failed",
+          description: "Current password is incorrect. Please try again.",
+          variant: "destructive",
+        });
+        return false;
+      }
+      
+      // Get all passwords with the current password
+      const passwords = storageService.getPasswords();
+      
+      // Update the master password hash
+      const newHash = hashMasterPassword(newPassword);
+      storageService.storeMasterPasswordHash(newHash);
+      
+      // Set the new master password for encryption/decryption
+      storageService.setMasterPassword(newPassword);
+      
+      // Re-save all passwords with the new password
+      storageService.savePasswords(passwords);
+      
+      toast({
+        title: "Password updated",
+        description: "Your master password has been updated successfully.",
+      });
+      return true;
+    } catch (error) {
+      console.error('Error updating master password:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update master password. Please try again.",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
 
   const value = {
     isAuthenticated,
@@ -123,7 +176,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setupMasterPassword,
     login,
     logout,
-    resetVault
+    resetVault,
+    updateMasterPassword
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

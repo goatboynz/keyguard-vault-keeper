@@ -1,151 +1,260 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { 
-  Plus, FolderLock, Wifi, Mail, Globe, Smartphone, Database, 
-  Key, Code, Laptop, CreditCard, Share2, Gamepad2, Network, 
-  Briefcase, ChevronDown, ChevronRight
+  Folder, Home, Settings, KeyRound, CreditCard, Shield, Briefcase, Package2, 
+  BadgePercent, DoorClosed, Hash, KeySquare, Building2, Gamepad2, Wifi, Network,
+  Star, Plus
 } from 'lucide-react';
-import { usePasswords, CATEGORIES } from '@/contexts/PasswordContext';
-import { Separator } from '@/components/ui/separator';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-
-// Map category names to icon components
-const getCategoryIcon = (iconName: string) => {
-  const icons: Record<string, React.ReactNode> = {
-    'Database': <Database className="h-4 w-4" />,
-    'Wifi': <Wifi className="h-4 w-4" />,
-    'Mail': <Mail className="h-4 w-4" />,
-    'Globe': <Globe className="h-4 w-4" />,
-    'Smartphone': <Smartphone className="h-4 w-4" />,
-    'Key': <Key className="h-4 w-4" />,
-    'Code': <Code className="h-4 w-4" />,
-    'Laptop': <Laptop className="h-4 w-4" />,
-    'CreditCard': <CreditCard className="h-4 w-4" />,
-    'Share2': <Share2 className="h-4 w-4" />,
-    'Gamepad2': <Gamepad2 className="h-4 w-4" />,
-    'Network': <Network className="h-4 w-4" />,
-    'Briefcase': <Briefcase className="h-4 w-4" />
-  };
-  
-  return icons[iconName] || <Database className="h-4 w-4" />;
-};
+import { cn } from '@/lib/utils';
+import { usePasswords } from '@/contexts/PasswordContext';
+import { useMobile } from '@/hooks/use-mobile';
 
 interface SidebarProps {
-  onAddPassword: () => void;
+  onAddPassword?: () => void;
 }
 
+type NavItem = {
+  title: string;
+  path?: string; // Optional as category items don't have paths
+  icon: React.ReactNode;
+  isCategory?: boolean;
+  subcategories?: string[];
+  credentialType?: string;
+};
+
 const Sidebar = ({ onAddPassword }: SidebarProps) => {
+  const location = useLocation();
+  const isMobile = useMobile();
+  const [isCollapsed, setIsCollapsed] = useState(isMobile);
   const { 
-    selectedCategory, 
-    setSelectedCategory,
-    selectedSubcategory,
-    setSelectedSubcategory
+    categories, 
+    subcategories,
+    selectCategory, 
+    selectSubcategory,
+    selectedCategory,
+    selectedSubcategory
   } = usePasswords();
-  const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({});
   
-  // Toggle category expansion
-  const toggleCategory = (categoryName: string) => {
-    setOpenCategories({
-      ...openCategories,
-      [categoryName]: !openCategories[categoryName]
-    });
+  useEffect(() => {
+    setIsCollapsed(isMobile);
+  }, [isMobile]);
+
+  // Map credential types to appropriate icons
+  const getCategoryIcon = (category: string) => {
+    switch (category) {
+      case 'Website': return <Globe className="h-4 w-4" />;
+      case 'App': return <Smartphone className="h-4 w-4" />;
+      case 'Email': return <Mail className="h-4 w-4" />;
+      case 'CCTV': return <Video className="h-4 w-4" />;
+      case 'Door Code': return <DoorClosed className="h-4 w-4" />;
+      case 'API Key': return <Hash className="h-4 w-4" />;
+      case 'Software': return <Package2 className="h-4 w-4" />;
+      case 'Financial': return <CreditCard className="h-4 w-4" />;
+      case 'Social Media': return <MessageSquare className="h-4 w-4" />;
+      case 'Gaming': return <Gamepad2 className="h-4 w-4" />;
+      case 'Networking': return <Network className="h-4 w-4" />;
+      case 'Professional': return <Briefcase className="h-4 w-4" />;
+      case 'Digital': return <KeySquare className="h-4 w-4" />;
+      case 'Other': return <Folder className="h-4 w-4" />;
+      default: return <Folder className="h-4 w-4" />;
+    }
+  };
+
+  // Navigation items including general pages and categories
+  const navItems: NavItem[] = [
+    {
+      title: "Dashboard",
+      path: "/dashboard",
+      icon: <Home className="h-4 w-4" />
+    },
+    {
+      title: "Settings",
+      path: "/settings",
+      icon: <Settings className="h-4 w-4" />
+    },
+    {
+      title: "Categories",
+      icon: <Folder className="h-4 w-4" />,
+      isCategory: true
+    },
+    // ... Add favorites, etc. if needed
+  ];
+  
+  // Dynamically add category items
+  const categoryItems: NavItem[] = categories.map(category => ({
+    title: category,
+    icon: getCategoryIcon(category),
+    isCategory: true,
+    subcategories: subcategories[category] || [],
+    credentialType: category
+  }));
+  
+  const handleCategoryClick = (category: string) => {
+    selectCategory(category);
+    selectSubcategory('All');
+  };
+  
+  const handleSubcategoryClick = (subcategory: string) => {
+    selectSubcategory(subcategory);
   };
   
   return (
-    <aside className="w-64 min-w-64 bg-vault-darker border-r border-gray-800 h-screen overflow-y-auto">
-      <div className="p-4">
-        <Button onClick={onAddPassword} className="w-full bg-vault-accent hover:bg-vault-accent/90 gap-2">
-          <Plus className="h-4 w-4" />
-          <span>Add Credential</span>
+    <div className={cn(
+      "h-screen bg-vault-darker border-r border-gray-800 transition-all duration-300 flex flex-col",
+      isCollapsed ? "w-16" : "w-64"
+    )}>
+      <div className="p-4 flex flex-col flex-1 overflow-hidden">
+        <div className="flex items-center justify-between mb-6">
+          {!isCollapsed && (
+            <div className="flex items-center">
+              <Shield className="h-5 w-5 text-vault-accent mr-2" />
+              <span className="font-semibold">KeyGuard</span>
+            </div>
+          )}
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="ml-auto"
+          >
+            {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </Button>
+        </div>
+        
+        <Button
+          className="mb-6 w-full bg-vault-accent hover:bg-vault-accent/90 justify-center"
+          onClick={onAddPassword}
+        >
+          {isCollapsed ? (
+            <Plus className="h-4 w-4" />
+          ) : (
+            <>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Password
+            </>
+          )}
         </Button>
-      </div>
-      
-      <Separator className="bg-gray-800" />
-      
-      <nav className="p-3">
-        <p className="text-xs uppercase text-gray-500 font-medium px-3 mb-2">Categories</p>
-        <ul className="space-y-1">
-          {CATEGORIES.map((category) => {
-            const isActive = selectedCategory === category.name;
-            const hasSubcategories = category.subcategories && category.subcategories.length > 0;
-            const isOpen = openCategories[category.name];
-            
-            return (
-              <li key={category.name}>
-                {hasSubcategories ? (
-                  <Collapsible 
-                    open={isOpen} 
-                    onOpenChange={() => toggleCategory(category.name)}
-                    className={cn(
-                      "w-full",
-                      isActive && "bg-vault-accent/10 rounded-md"
-                    )}
-                  >
-                    <CollapsibleTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        className={cn(
-                          "w-full justify-between font-normal",
-                          isActive 
-                            ? "bg-vault-accent/10 text-vault-accent" 
-                            : "hover:bg-vault-accent/5"
-                        )}
-                      >
-                        <div className="flex items-center gap-2">
-                          {getCategoryIcon(category.icon)}
-                          <span>{category.name}</span>
+        
+        <div className="flex-1 overflow-y-auto">
+          <nav className="space-y-1">
+            {/* Main navigation items */}
+            {navItems.map((item, index) => (
+              item.path ? (
+                <NavLink
+                  key={index}
+                  to={item.path}
+                  className={({ isActive }) => cn(
+                    "flex items-center px-3 py-2 rounded-md transition-colors",
+                    isActive ? "bg-vault-dark text-vault-accent" : "text-gray-400 hover:bg-vault-dark/50 hover:text-white"
+                  )}
+                >
+                  {isCollapsed ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center justify-center w-full">
+                          {item.icon}
                         </div>
-                        {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                      </Button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="pl-8 mt-1 space-y-1">
-                      {category.subcategories?.map(subcat => (
-                        <Button
-                          key={subcat}
-                          variant="ghost"
-                          className={cn(
-                            "w-full justify-start gap-2 text-sm font-normal",
-                            selectedSubcategory === subcat && selectedCategory === category.name
-                              ? "bg-vault-accent/10 text-vault-accent" 
-                              : "hover:bg-vault-accent/5"
-                          )}
-                          onClick={() => {
-                            setSelectedCategory(category.name);
-                            setSelectedSubcategory(subcat);
-                          }}
-                        >
-                          <span>{subcat}</span>
-                        </Button>
-                      ))}
-                    </CollapsibleContent>
-                  </Collapsible>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    className={cn(
-                      "w-full justify-start gap-2 font-normal",
-                      isActive 
-                        ? "bg-vault-accent/10 text-vault-accent" 
-                        : "hover:bg-vault-accent/5"
-                    )}
-                    onClick={() => {
-                      setSelectedCategory(category.name);
-                      setSelectedSubcategory('All');
-                    }}
-                  >
-                    {getCategoryIcon(category.icon)}
-                    <span>{category.name}</span>
-                  </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">
+                        <p>{item.title}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <>
+                      {item.icon}
+                      <span className="ml-3 text-sm">{item.title}</span>
+                    </>
+                  )}
+                </NavLink>
+              ) : item.isCategory ? (
+                <div key={index} className="pt-4">
+                  {!isCollapsed && (
+                    <h2 className="mb-2 px-3 text-xs font-semibold text-gray-500 uppercase">
+                      {item.title}
+                    </h2>
+                  )}
+                </div>
+              ) : null
+            ))}
+            
+            {/* Category items */}
+            {categoryItems.map((item, index) => (
+              <div key={`category-${index}`}>
+                <button
+                  className={cn(
+                    "flex items-center px-3 py-2 w-full rounded-md transition-colors",
+                    selectedCategory === item.title 
+                      ? "bg-vault-dark text-vault-accent" 
+                      : "text-gray-400 hover:bg-vault-dark/50 hover:text-white"
+                  )}
+                  onClick={() => handleCategoryClick(item.title)}
+                >
+                  {isCollapsed ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center justify-center w-full">
+                          {item.icon}
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">
+                        <p>{item.title}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <>
+                      {item.icon}
+                      <span className="ml-3 text-sm">{item.title}</span>
+                    </>
+                  )}
+                </button>
+                
+                {/* Subcategories - only show if category is selected and not collapsed */}
+                {!isCollapsed && selectedCategory === item.title && item.subcategories && item.subcategories.length > 0 && (
+                  <div className="ml-6 mt-1 space-y-1">
+                    <button
+                      className={cn(
+                        "flex items-center px-3 py-1 w-full rounded-md transition-colors text-sm",
+                        selectedSubcategory === 'All' 
+                          ? "text-vault-accent" 
+                          : "text-gray-400 hover:text-white"
+                      )}
+                      onClick={() => handleSubcategoryClick('All')}
+                    >
+                      All
+                    </button>
+                    
+                    {item.subcategories.map((subcategory, subIndex) => (
+                      <button
+                        key={`subcategory-${subIndex}`}
+                        className={cn(
+                          "flex items-center px-3 py-1 w-full rounded-md transition-colors text-sm",
+                          selectedSubcategory === subcategory 
+                            ? "text-vault-accent" 
+                            : "text-gray-400 hover:text-white"
+                        )}
+                        onClick={() => handleSubcategoryClick(subcategory)}
+                      >
+                        {subcategory}
+                      </button>
+                    ))}
+                  </div>
                 )}
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-    </aside>
+              </div>
+            ))}
+          </nav>
+        </div>
+      </div>
+    </div>
   );
 };
+
+// Missing import statements
+import { 
+  ChevronLeft, ChevronRight, Mail, Globe, Smartphone, 
+  Video, MessageSquare 
+} from 'lucide-react';
 
 export default Sidebar;

@@ -1,15 +1,25 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Header from '@/components/layout/Header';
 import Sidebar from '@/components/layout/Sidebar';
 import PasswordList from '@/components/passwords/PasswordList';
 import PasswordForm from '@/components/passwords/PasswordForm';
 import { usePasswords } from '@/contexts/PasswordContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Dashboard = () => {
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [isPasswordFormOpen, setIsPasswordFormOpen] = useState(false);
   const [editingPasswordId, setEditingPasswordId] = useState<string | undefined>(undefined);
   const { selectedCategory, selectedSubcategory } = usePasswords();
+  
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/');
+    }
+  }, [isAuthenticated, navigate]);
   
   const handleAddPassword = () => {
     setEditingPasswordId(undefined);
@@ -25,6 +35,10 @@ const Dashboard = () => {
     setIsPasswordFormOpen(false);
     setEditingPasswordId(undefined);
   };
+  
+  if (!isAuthenticated) {
+    return null;
+  }
   
   return (
     <div className="flex h-screen overflow-hidden">
