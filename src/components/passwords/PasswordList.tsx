@@ -4,10 +4,13 @@ import { usePasswords } from '@/contexts/PasswordContext';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { 
-  Eye, EyeOff, Copy, Edit, Trash2, Globe, Mail, Shield, Wifi, Smartphone, Database 
+  Eye, EyeOff, Copy, Edit, Trash2, Globe, Mail, Shield, Wifi, 
+  Smartphone, Database, Key, Code, Laptop, CreditCard, Share2, 
+  Gamepad2, Network, Briefcase 
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { PasswordEntry, BaseField } from '@/utils/storage';
 
 const getCategoryIcon = (category: string) => {
   switch (category.toLowerCase()) {
@@ -15,9 +18,25 @@ const getCategoryIcon = (category: string) => {
       return <Wifi className="h-4 w-4 text-blue-400" />;
     case 'email':
       return <Mail className="h-4 w-4 text-amber-400" />;
-    case 'website':
+    case 'websites':
       return <Globe className="h-4 w-4 text-green-400" />;
-    case 'app':
+    case 'door codes':
+      return <Key className="h-4 w-4 text-red-400" />;
+    case 'api keys':
+      return <Code className="h-4 w-4 text-violet-400" />;
+    case 'software':
+      return <Laptop className="h-4 w-4 text-blue-500" />;
+    case 'financial':
+      return <CreditCard className="h-4 w-4 text-emerald-400" />;
+    case 'social media':
+      return <Share2 className="h-4 w-4 text-pink-400" />;
+    case 'gaming':
+      return <Gamepad2 className="h-4 w-4 text-indigo-400" />;
+    case 'networking':
+      return <Network className="h-4 w-4 text-cyan-400" />;
+    case 'work':
+      return <Briefcase className="h-4 w-4 text-orange-400" />;
+    case 'digital access':
       return <Smartphone className="h-4 w-4 text-purple-400" />;
     default:
       return <Database className="h-4 w-4 text-gray-400" />;
@@ -29,32 +48,58 @@ interface PasswordListProps {
 }
 
 const PasswordList = ({ onEdit }: PasswordListProps) => {
-  const { passwords, deletePassword, selectedCategory, searchTerm } = usePasswords();
+  const { passwords, deletePassword, selectedCategory, selectedSubcategory, searchTerm } = usePasswords();
   const { toast } = useToast();
   const [visiblePasswords, setVisiblePasswords] = useState<string[]>([]);
+  const [visibleCustomFields, setVisibleCustomFields] = useState<Record<string, string[]>>({});
   
-  // Filter passwords based on category and search term
+  // Filter passwords based on category, subcategory and search term
   const filteredPasswords = useMemo(() => {
     return passwords.filter(password => {
       // Category filter
-      if (selectedCategory !== 'All' && password.category !== selectedCategory) {
-        return false;
+      if (selectedCategory !== 'All') {
+        // Find category definition
+        const categoryDefinition = { name: selectedCategory };
+        
+        // Check if this password belongs to the selected category
+        if (password.category !== categoryDefinition.name) {
+          return false;
+        }
+        
+        // Subcategory filter
+        if (selectedSubcategory !== 'All' && password.subcategory !== selectedSubcategory) {
+          return false;
+        }
       }
       
       // Search filter
       if (searchTerm) {
         const searchLower = searchTerm.toLowerCase();
-        return (
+        
+        // Check standard fields
+        if (
           password.title.toLowerCase().includes(searchLower) ||
           password.username.toLowerCase().includes(searchLower) ||
           (password.url && password.url.toLowerCase().includes(searchLower)) ||
           (password.notes && password.notes.toLowerCase().includes(searchLower))
-        );
+        ) {
+          return true;
+        }
+        
+        // Check custom fields
+        if (password.customFields) {
+          return password.customFields.some(field => 
+            field.name.toLowerCase().includes(searchLower) || 
+            field.value.toLowerCase().includes(searchLower)
+          );
+        }
+        
+        return false;
       }
       
       return true;
     });
-  }, [passwords, selectedCategory, searchTerm]);
+  }, [passwords, selectedCategory, selectedSubcategory, searchTerm]);
 
   // Toggle password visibility
   const togglePasswordVisibility = (id: string) => {
@@ -68,8 +113,33 @@ const PasswordList = ({ onEdit }: PasswordListProps) => {
       }, 10000); // 10 seconds
     }
   };
+  
+  // Toggle custom field visibility
+  const toggleCustomFieldVisibility = (passwordId: string, fieldName: string) => {
+    const currentVisible = visibleCustomFields[passwordId] || [];
+    
+    if (currentVisible.includes(fieldName)) {
+      setVisibleCustomFields({
+        ...visibleCustomFields,
+        [passwordId]: currentVisible.filter(name => name !== fieldName)
+      });
+    } else {
+      setVisibleCustomFields({
+        ...visibleCustomFields,
+        [passwordId]: [...currentVisible, fieldName]
+      });
+      
+      // Auto-hide after 10 seconds
+      setTimeout(() => {
+        setVisibleCustomFields(prev => ({
+          ...prev,
+          [passwordId]: (prev[passwordId] || []).filter(name => name !== fieldName)
+        }));
+      }, 10000);
+    }
+  };
 
-  // Copy password to clipboard
+  // Copy to clipboard
   const copyToClipboard = (text: string, itemName: string) => {
     navigator.clipboard.writeText(text);
     toast({
@@ -89,19 +159,115 @@ const PasswordList = ({ onEdit }: PasswordListProps) => {
       deletePassword(id);
     }
   };
+  
+  // Render credential fields based on type
+  const renderCredentialFields = (password: PasswordEntry) => {
+    return (
+      <div className="space-y-3">
+        {/* Standard username/password for most types */}
+        {['website', 'email', 'app', 'software', 'financialBanking', 'socialMedia', 'gaming', 'professional', 'digital'].includes(password.credentialType) && (
+          <>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-vault-muted">Username</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm">{password.username}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => copyToClipboard(password.username, 'Username')}
+                >
+                  <Copy className="h-3.5 w-3.5 text-gray-400" />
+                </Button>
+              </div>
+            </div>
+            
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-vault-muted">Password</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-mono">
+                  {visiblePasswords.includes(password.id)
+                    ? password.password
+                    : '••••••••••••'}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => togglePasswordVisibility(password.id)}
+                >
+                  {visiblePasswords.includes(password.id) ? (
+                    <EyeOff className="h-3.5 w-3.5 text-gray-400" />
+                  ) : (
+                    <Eye className="h-3.5 w-3.5 text-gray-400" />
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => copyToClipboard(password.password, 'Password')}
+                >
+                  <Copy className="h-3.5 w-3.5 text-gray-400" />
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
+        
+        {/* Custom fields */}
+        {password.customFields && password.customFields.map((field, index) => (
+          <div key={index} className="flex justify-between items-center">
+            <span className="text-sm text-vault-muted">{field.name}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-mono">
+                {field.isSecret && !visibleCustomFields[password.id]?.includes(field.name)
+                  ? '••••••••••••'
+                  : field.value}
+              </span>
+              {field.isSecret && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => toggleCustomFieldVisibility(password.id, field.name)}
+                >
+                  {visibleCustomFields[password.id]?.includes(field.name) ? (
+                    <EyeOff className="h-3.5 w-3.5 text-gray-400" />
+                  ) : (
+                    <Eye className="h-3.5 w-3.5 text-gray-400" />
+                  )}
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => copyToClipboard(field.value, field.name)}
+              >
+                <Copy className="h-3.5 w-3.5 text-gray-400" />
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   // Empty state
   if (filteredPasswords.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-center p-6">
         <Shield className="h-16 w-16 text-gray-600 mb-4" />
-        <h3 className="text-xl font-medium mb-2">No passwords found</h3>
+        <h3 className="text-xl font-medium mb-2">No credentials found</h3>
         <p className="text-vault-muted mb-6 max-w-md">
           {searchTerm
-            ? "No passwords match your search. Try adjusting your search criteria."
+            ? "No credentials match your search. Try adjusting your search criteria."
             : selectedCategory !== 'All'
-            ? `No passwords in the "${selectedCategory}" category yet.`
-            : "Your vault is empty. Add your first password to get started."}
+            ? selectedSubcategory !== 'All'
+              ? `No credentials in the "${selectedCategory}/${selectedSubcategory}" category yet.`
+              : `No credentials in the "${selectedCategory}" category yet.`
+            : "Your vault is empty. Add your first credential to get started."}
         </p>
       </div>
     );
@@ -119,6 +285,7 @@ const PasswordList = ({ onEdit }: PasswordListProps) => {
               {getCategoryIcon(password.category)}
               <span className="text-xs uppercase tracking-wider text-vault-muted">
                 {password.category}
+                {password.subcategory && ` / ${password.subcategory}`}
               </span>
             </div>
             
@@ -136,53 +303,7 @@ const PasswordList = ({ onEdit }: PasswordListProps) => {
               </a>
             )}
             
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-vault-muted">Username</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm">{password.username}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => copyToClipboard(password.username, 'Username')}
-                  >
-                    <Copy className="h-3.5 w-3.5 text-gray-400" />
-                  </Button>
-                </div>
-              </div>
-              
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-vault-muted">Password</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-mono">
-                    {visiblePasswords.includes(password.id)
-                      ? password.password
-                      : '••••••••••••'}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => togglePasswordVisibility(password.id)}
-                  >
-                    {visiblePasswords.includes(password.id) ? (
-                      <EyeOff className="h-3.5 w-3.5 text-gray-400" />
-                    ) : (
-                      <Eye className="h-3.5 w-3.5 text-gray-400" />
-                    )}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => copyToClipboard(password.password, 'Password')}
-                  >
-                    <Copy className="h-3.5 w-3.5 text-gray-400" />
-                  </Button>
-                </div>
-              </div>
-            </div>
+            {renderCredentialFields(password)}
             
             {password.notes && (
               <div className="mt-4 p-3 bg-vault-dark/30 rounded border border-gray-800">
@@ -221,4 +342,3 @@ const PasswordList = ({ onEdit }: PasswordListProps) => {
 };
 
 export default PasswordList;
-

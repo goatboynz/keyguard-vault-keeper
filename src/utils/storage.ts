@@ -1,17 +1,41 @@
-
 import { encryptData, decryptData } from './encryption';
+
+export interface BaseField {
+  name: string;
+  value: string;
+  isSecret?: boolean;
+}
 
 export interface PasswordEntry {
   id: string;
   title: string;
-  username: string;
+  username: string; 
   password: string;
   url?: string;
   category: string;
+  subcategory?: string;
   notes?: string;
   lastModified: string;
   favorite?: boolean;
+  credentialType: CredentialType;
+  customFields?: BaseField[];
 }
+
+export type CredentialType = 
+  | 'website'
+  | 'app'
+  | 'email'
+  | 'cctv'
+  | 'doorCode'
+  | 'apiKey'
+  | 'software'
+  | 'financialBanking'
+  | 'socialMedia'
+  | 'gaming'
+  | 'networking'
+  | 'professional'
+  | 'digital'
+  | 'other';
 
 class LocalStorage {
   private masterPassword: string | null = null;
