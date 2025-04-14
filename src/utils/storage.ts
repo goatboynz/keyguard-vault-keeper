@@ -39,6 +39,8 @@ export type CredentialType =
   | 'digital'
   | 'other';
 
+// Note: This class is now deprecated in favor of SQLiteStorage
+// It's kept for reference and backward compatibility
 class LocalStorage {
   private masterPassword: string | null = null;
   private readonly MASTER_HASH_KEY = 'vault_master_hash';

@@ -1,4 +1,3 @@
-
 import { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { hashMasterPassword, verifyMasterPassword } from '../utils/encryption';
 import { sqliteStorageService } from '../utils/sqliteStorage';
@@ -8,7 +7,7 @@ import { SecurityQuestion } from '@/components/auth/SecurityQuestionsSetup';
 interface AuthContextType {
   isAuthenticated: boolean;
   isSetup: boolean;
-  hasSecurityQuestions: boolean;
+  hasSecurityQuestions: () => Promise<boolean>;
   setupMasterPassword: (password: string) => Promise<boolean>;
   setupSecurityQuestions: (questions: SecurityQuestion[]) => Promise<boolean>;
   getSecurityQuestions: () => Promise<SecurityQuestion[] | null>;
@@ -38,6 +37,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     
     checkSetup();
   }, []);
+  
+  const hasSecurityQuestions = async (): Promise<boolean> => {
+    return await sqliteStorageService.hasSecurityQuestions();
+  };
   
   const setupMasterPassword = async (password: string): Promise<boolean> => {
     try {
@@ -263,7 +266,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const value = {
     isAuthenticated,
     isSetup,
-    hasSecurityQuestions: hasSecurityQs,
+    hasSecurityQuestions,
     setupMasterPassword,
     setupSecurityQuestions,
     getSecurityQuestions,

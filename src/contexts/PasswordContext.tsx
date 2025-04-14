@@ -84,6 +84,7 @@ export const PasswordProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(true);
       const loadPasswords = async () => {
         try {
+          await sqliteStorageService.ensureDbReady();
           const storedPasswords = await sqliteStorageService.getPasswords();
           setPasswords(storedPasswords);
         } catch (error) {
