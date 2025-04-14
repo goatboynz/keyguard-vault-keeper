@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
@@ -26,8 +26,18 @@ const PasswordRecovery = ({ onCancel }: PasswordRecoveryProps) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<'questions' | 'new-password'>('questions');
+  const [securityQuestions, setSecurityQuestions] = useState<SecurityQuestion[] | null>(null);
+  const [loading, setLoading] = useState(true);
   
-  const securityQuestions = getSecurityQuestions();
+  useEffect(() => {
+    const loadSecurityQuestions = async () => {
+      const questions = await getSecurityQuestions();
+      setSecurityQuestions(questions);
+      setLoading(false);
+    };
+    
+    loadSecurityQuestions();
+  }, [getSecurityQuestions]);
 
   const handleAnswerChange = (index: number, answer: string) => {
     const updatedAnswers = [...answers];
@@ -38,6 +48,8 @@ const PasswordRecovery = ({ onCancel }: PasswordRecoveryProps) => {
 
   const handleQuestionsSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!securityQuestions) return;
     
     // Validate all questions have answers
     if (answers.length !== securityQuestions.length || answers.some(a => !a.trim())) {
@@ -60,7 +72,7 @@ const PasswordRecovery = ({ onCancel }: PasswordRecoveryProps) => {
     setError(null);
   };
 
-  const handlePasswordSubmit = (e: React.FormEvent) => {
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!newPassword || newPassword.length < 8) {
@@ -73,11 +85,15 @@ const PasswordRecovery = ({ onCancel }: PasswordRecoveryProps) => {
       return;
     }
     
-    const success = resetPasswordWithSecurityQuestions(newPassword);
+    const success = await resetPasswordWithSecurityQuestions(newPassword);
     if (!success) {
       setError('Failed to reset password. Please try again.');
     }
   };
+
+  if (loading) {
+    return <div className="flex items-center justify-center">Loading security questions...</div>;
+  }
 
   if (!securityQuestions || securityQuestions.length === 0) {
     return (

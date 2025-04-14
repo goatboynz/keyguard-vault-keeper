@@ -16,9 +16,8 @@ export const StorageProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const initializeStorage = async () => {
       try {
-        // The SQLite storage service initializes itself when created,
-        // but we need to wait for it to be ready before rendering children
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // We need to wait a bit to make sure the SQLite WASM module loads
+        await new Promise(resolve => setTimeout(resolve, 1500));
         setIsReady(true);
       } catch (error) {
         console.error('Failed to initialize storage:', error);
@@ -35,7 +34,13 @@ export const StorageProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <StorageContext.Provider value={{ isReady }}>
-      {isReady ? children : <div className="flex items-center justify-center h-screen">Initializing database...</div>}
+      {isReady ? children : (
+        <div className="flex flex-col items-center justify-center h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+          <div>Initializing database...</div>
+          <div className="text-sm text-muted-foreground mt-2">This may take a moment</div>
+        </div>
+      )}
     </StorageContext.Provider>
   );
 };

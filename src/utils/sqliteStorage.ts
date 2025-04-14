@@ -1,4 +1,3 @@
-
 import initSqlJs, { Database } from 'sql.js';
 import { SecurityQuestion } from '../components/auth/SecurityQuestionsSetup';
 import { PasswordEntry, BaseField, CredentialType } from './storage';
@@ -10,9 +9,10 @@ class SQLiteStorage {
   private initialized = false;
   private readonly MASTER_HASH_KEY = 'master_hash';
   private readonly SECURITY_QUESTIONS_KEY = 'security_questions';
+  private initializationPromise: Promise<void>;
 
   constructor() {
-    this.initDatabase();
+    this.initializationPromise = this.initDatabase();
   }
 
   /**
@@ -52,6 +52,7 @@ class SQLiteStorage {
       console.log('SQLite database initialized successfully');
     } catch (error) {
       console.error('Failed to initialize SQLite database:', error);
+      this.initialized = false;
     }
   }
 
@@ -95,18 +96,14 @@ class SQLiteStorage {
    */
   private async ensureDbReady(): Promise<boolean> {
     if (!this.initialized) {
-      // Wait for initialization to complete
-      await new Promise(resolve => {
-        const checkInit = () => {
-          if (this.initialized) {
-            resolve(true);
-            return;
-          }
-          setTimeout(checkInit, 100);
-        };
-        
-        checkInit();
-      });
+      try {
+        await this.initializationPromise;
+      } catch (error) {
+        console.error('Error ensuring DB ready:', error);
+        // Try to initialize again if it failed
+        this.initializationPromise = this.initDatabase();
+        await this.initializationPromise;
+      }
     }
     
     return this.db !== null;

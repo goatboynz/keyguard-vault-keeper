@@ -1,5 +1,5 @@
 
-import { createContext, useState, useContext, ReactNode } from 'react';
+import { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { hashMasterPassword, verifyMasterPassword } from '../utils/encryption';
 import { sqliteStorageService } from '../utils/sqliteStorage';
 import { useToast } from '@/components/ui/use-toast';
@@ -28,7 +28,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
 
   // Check if master password is set up
-  useState(() => {
+  useEffect(() => {
     const checkSetup = async () => {
       const hasPassword = await sqliteStorageService.hasMasterPasswordSetup();
       const hasQuestions = await sqliteStorageService.hasSecurityQuestions();
@@ -37,7 +37,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
     
     checkSetup();
-  });
+  }, []);
   
   const setupMasterPassword = async (password: string): Promise<boolean> => {
     try {
