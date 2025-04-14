@@ -2,7 +2,7 @@
 import { useState, useMemo } from 'react';
 import { usePasswords } from '@/contexts/PasswordContext';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/components/ui/toast';
+import { useToast } from '@/components/ui/use-toast';
 import { 
   Eye, EyeOff, Copy, Edit, Trash2, Globe, Mail, Shield, Wifi, Smartphone, Database 
 } from 'lucide-react';
@@ -221,3 +221,4 @@ const PasswordList = ({ onEdit }: PasswordListProps) => {
 };
 
 export default PasswordList;
+
