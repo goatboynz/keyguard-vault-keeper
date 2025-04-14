@@ -5,6 +5,8 @@ import { useToast } from '@/components/ui/use-toast';
 
 interface StorageContextValue {
   isReady: boolean;
+  exportDatabase: () => Promise<void>;
+  importDatabase: (file: File) => Promise<boolean>;
 }
 
 const StorageContext = createContext<StorageContextValue | undefined>(undefined);
@@ -32,8 +34,54 @@ export const StorageProvider = ({ children }: { children: ReactNode }) => {
     initializeStorage();
   }, [toast]);
 
+  const exportDatabase = async () => {
+    try {
+      await sqliteStorageService.saveToFile();
+      toast({
+        title: "Database Exported",
+        description: "Your vault has been exported successfully.",
+      });
+    } catch (error) {
+      console.error('Failed to export database:', error);
+      toast({
+        title: "Export Failed",
+        description: "Failed to export your vault. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const importDatabase = async (file: File): Promise<boolean> => {
+    try {
+      const success = await sqliteStorageService.loadFromFile(file);
+      
+      if (success) {
+        toast({
+          title: "Database Imported",
+          description: "Your vault has been imported successfully.",
+        });
+        return true;
+      } else {
+        toast({
+          title: "Import Failed",
+          description: "Failed to import your vault. The file may be corrupted or invalid.",
+          variant: "destructive",
+        });
+        return false;
+      }
+    } catch (error) {
+      console.error('Failed to import database:', error);
+      toast({
+        title: "Import Failed",
+        description: "An error occurred while importing your vault.",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
   return (
-    <StorageContext.Provider value={{ isReady }}>
+    <StorageContext.Provider value={{ isReady, exportDatabase, importDatabase }}>
       {isReady ? children : (
         <div className="flex flex-col items-center justify-center h-screen">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>

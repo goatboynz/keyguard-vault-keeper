@@ -1,6 +1,7 @@
 
 import { encryptData, decryptData } from './encryption';
 import { SecurityQuestion } from '../components/auth/SecurityQuestionsSetup';
+import { sqliteStorageService } from './sqliteStorage';
 
 export interface BaseField {
   name: string;
@@ -51,8 +52,10 @@ class LocalStorage {
    * Sets the master password for the vault
    * @param password - The master password to set
    */
-  setMasterPassword(password: string): void {
+  async setMasterPassword(password: string): Promise<void> {
     this.masterPassword = password;
+    // Also set in SQLite for compatibility
+    await sqliteStorageService.setMasterPassword(password);
   }
   
   /**
@@ -60,43 +63,34 @@ class LocalStorage {
    */
   clearMasterPassword(): void {
     this.masterPassword = null;
+    sqliteStorageService.clearMasterPassword();
   }
   
   /**
    * Checks if a master password has been set up
    * @returns Whether a master password has been set up
    */
-  hasMasterPasswordSetup(): boolean {
-    return localStorage.getItem(this.MASTER_HASH_KEY) !== null;
+  async hasMasterPasswordSetup(): Promise<boolean> {
+    // Use SQLite service for the actual check
+    return await sqliteStorageService.hasMasterPasswordSetup();
   }
   
   /**
    * Checks if security questions have been set up
    * @returns Whether security questions have been set up
    */
-  hasSecurityQuestions(): boolean {
-    return localStorage.getItem(this.SECURITY_QUESTIONS_KEY) !== null;
+  async hasSecurityQuestions(): Promise<boolean> {
+    // Use SQLite service for the actual check
+    return await sqliteStorageService.hasSecurityQuestions();
   }
   
   /**
    * Gets the stored passwords
    * @returns The stored passwords
    */
-  getPasswords(): PasswordEntry[] {
-    if (!this.masterPassword) {
-      throw new Error('Master password not set');
-    }
-    
-    const encryptedData = localStorage.getItem(this.PASSWORDS_KEY);
-    if (!encryptedData) return [];
-    
-    try {
-      const decryptedData = decryptData(encryptedData, this.masterPassword);
-      return JSON.parse(decryptedData) as PasswordEntry[];
-    } catch (error) {
-      console.error('Error getting passwords:', error);
-      return [];
-    }
+  async getPasswords(): Promise<PasswordEntry[]> {
+    // Use SQLite service for the actual retrieval
+    return await sqliteStorageService.getPasswords();
   }
   
   /**
@@ -104,35 +98,27 @@ class LocalStorage {
    * @param passwords - The passwords to save
    * @returns Whether the operation was successful
    */
-  savePasswords(passwords: PasswordEntry[]): boolean {
-    if (!this.masterPassword) {
-      throw new Error('Master password not set');
-    }
-    
-    try {
-      const encryptedData = encryptData(JSON.stringify(passwords), this.masterPassword);
-      localStorage.setItem(this.PASSWORDS_KEY, encryptedData);
-      return true;
-    } catch (error) {
-      console.error('Error saving passwords:', error);
-      return false;
-    }
+  async savePasswords(passwords: PasswordEntry[]): Promise<boolean> {
+    // Use SQLite service for the actual saving
+    return await sqliteStorageService.savePasswords(passwords);
   }
   
   /**
    * Stores the master password hash
    * @param hash - The hash of the master password
    */
-  storeMasterPasswordHash(hash: string): void {
-    localStorage.setItem(this.MASTER_HASH_KEY, hash);
+  async storeMasterPasswordHash(hash: string): Promise<void> {
+    // Use SQLite service for the actual storage
+    await sqliteStorageService.storeMasterPasswordHash(hash);
   }
   
   /**
    * Gets the stored master password hash
    * @returns The stored master password hash
    */
-  getMasterPasswordHash(): string | null {
-    return localStorage.getItem(this.MASTER_HASH_KEY);
+  async getMasterPasswordHash(): Promise<string | null> {
+    // Use SQLite service for the actual retrieval
+    return await sqliteStorageService.getMasterPasswordHash();
   }
   
   /**
@@ -140,41 +126,26 @@ class LocalStorage {
    * @param questions - The security questions to save
    * @returns Whether the operation was successful
    */
-  saveSecurityQuestions(questions: SecurityQuestion[]): boolean {
-    try {
-      // We'll store these unencrypted since they're needed for password recovery
-      localStorage.setItem(this.SECURITY_QUESTIONS_KEY, JSON.stringify(questions));
-      return true;
-    } catch (error) {
-      console.error('Error saving security questions:', error);
-      return false;
-    }
+  async saveSecurityQuestions(questions: SecurityQuestion[]): Promise<boolean> {
+    // Use SQLite service for the actual saving
+    return await sqliteStorageService.saveSecurityQuestions(questions);
   }
   
   /**
    * Gets the stored security questions
    * @returns The stored security questions or null if not found
    */
-  getSecurityQuestions(): SecurityQuestion[] | null {
-    const data = localStorage.getItem(this.SECURITY_QUESTIONS_KEY);
-    if (!data) return null;
-    
-    try {
-      return JSON.parse(data) as SecurityQuestion[];
-    } catch (error) {
-      console.error('Error getting security questions:', error);
-      return null;
-    }
+  async getSecurityQuestions(): Promise<SecurityQuestion[] | null> {
+    // Use SQLite service for the actual retrieval
+    return await sqliteStorageService.getSecurityQuestions();
   }
   
   /**
    * Resets the vault
    */
-  resetVault(): void {
-    localStorage.removeItem(this.MASTER_HASH_KEY);
-    localStorage.removeItem(this.PASSWORDS_KEY);
-    localStorage.removeItem(this.SECURITY_QUESTIONS_KEY);
-    this.masterPassword = null;
+  async resetVault(): Promise<void> {
+    // Use SQLite service for the actual reset
+    await sqliteStorageService.resetVault();
   }
 }
 
