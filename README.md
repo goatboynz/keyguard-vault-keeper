@@ -19,6 +19,8 @@ KeyGuard Vault Keeper is a secure password management application that helps you
 - **Export Options**: Securely export your data when needed
 - **Auto-Lock**: Automatically locks your vault after a period of inactivity
 
+![Dashboard Screenshot](https://i.imgur.com/LZHtN2x.png)
+
 ## How it works
 
 1. **Setup**: Create a master password to encrypt your vault
@@ -26,6 +28,8 @@ KeyGuard Vault Keeper is a secure password management application that helps you
 3. **Add Credentials**: Store website logins, credit cards, secure notes, and more
 4. **Access Anytime**: Unlock your vault with your master password whenever you need to access your credentials
 5. **Search & Filter**: Easily find credentials by searching or filtering by categories
+
+![Password Management](https://i.imgur.com/dUvSg2N.png)
 
 ## Technical Details
 
@@ -35,6 +39,28 @@ KeyGuard Vault Keeper uses SQL.js, a JavaScript SQL database engine that runs en
 - **No Server Required**: The application runs entirely in your browser
 - **Exportable Database**: You can export your database for backup purposes
 - **Importable Database**: You can import a previously exported database
+
+### Database Structure
+
+The application uses a SQLite database with the following structure:
+
+```sql
+-- Settings table for master password hash and security questions
+CREATE TABLE vault_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
+
+-- Passwords table for encrypted credentials
+CREATE TABLE vault_passwords (
+  id TEXT PRIMARY KEY,
+  data TEXT
+);
+```
+
+All data in the database is encrypted using AES-256 encryption with the master password as the key. The master password itself is never stored - only a hash of it is saved for verification.
+
+![Security Settings](https://i.imgur.com/JmrjFE3.png)
 
 ## Setup Instructions
 
@@ -130,9 +156,19 @@ You can also deploy the built application to:
 
 KeyGuard Vault Keeper uses a browser-based SQLite database (via SQL.js) to store your credentials. While this provides the benefit of not requiring a server, it's important to understand:
 
-1. The data is still stored in your browser's storage (similar to localStorage but as a SQLite database)
+1. The data is stored in your browser's storage (as a SQLite database)
 2. To access your vault from different devices or browsers, you'll need to export your database and import it elsewhere
 3. For true multi-device synchronization, consider using the app with a cloud storage solution for your exported database file
+
+![Database Export](https://i.imgur.com/P3wjQYm.png)
+
+## Data Migration
+
+KeyGuard Vault Keeper includes automatic migration from the previous localStorage-based storage to the new SQLite database:
+
+- If you've used a previous version of the app, your data will be automatically migrated to the SQLite database
+- The migration happens once when you first log in to the new version
+- After migration, all operations will use the SQLite database
 
 ## How to edit this project
 
@@ -191,10 +227,3 @@ This project is built with:
 - Tailwind CSS
 - CryptoJS for encryption
 - SQL.js for browser-based SQLite storage
-
-## Security Considerations
-
-- Your master password is never stored anywhere
-- All encryption/decryption happens locally in your browser
-- No data is sent to external servers (except for authentication if enabled)
-- Regular security updates are important to maintain protection
