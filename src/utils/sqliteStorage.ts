@@ -12,6 +12,8 @@ class SQLiteStorage {
   private readonly SECURITY_QUESTIONS_KEY = 'security_questions';
   private initializationPromise: Promise<void>;
   private readonly DB_FILE_KEY = 'keyguard_db_file';
+  private readonly DB_FILE_NAME = 'vault.db';
+  private readonly DB_FOLDER_NAME = 'database';
 
   constructor() {
     this.initializationPromise = this.initDatabase();
@@ -58,9 +60,6 @@ class SQLiteStorage {
       }
       
       this.initialized = true;
-
-      // Attempt to load data from localStorage if it exists (for migration)
-      this.migrateFromLocalStorage();
       
       // Save the initial database to IndexedDB
       await this.saveDatabaseToStorage();
@@ -173,40 +172,6 @@ class SQLiteStorage {
     } catch (error) {
       console.error('Error loading database from storage:', error);
       return null;
-    }
-  }
-
-  /**
-   * Migrate data from localStorage to SQLite (one-time migration)
-   */
-  private migrateFromLocalStorage(): void {
-    try {
-      // Migrate master password hash if exists
-      const masterHash = localStorage.getItem('vault_master_hash');
-      if (masterHash) {
-        this.setSettingValue(this.MASTER_HASH_KEY, masterHash);
-      }
-      
-      // Migrate security questions if exist
-      const securityQuestions = localStorage.getItem('vault_security_questions');
-      if (securityQuestions) {
-        this.setSettingValue(this.SECURITY_QUESTIONS_KEY, securityQuestions);
-      }
-      
-      // Migrate passwords if exist and master password is set
-      if (this.masterPassword) {
-        const encryptedPasswords = localStorage.getItem('vault_passwords');
-        if (encryptedPasswords) {
-          this.db?.run(
-            'INSERT OR REPLACE INTO vault_passwords (id, data) VALUES (?, ?)',
-            ['passwords', encryptedPasswords]
-          );
-        }
-      }
-      
-      console.log('Migration from localStorage completed');
-    } catch (error) {
-      console.error('Error during migration from localStorage:', error);
     }
   }
 
@@ -459,7 +424,32 @@ class SQLiteStorage {
   }
 
   /**
-   * Saves the database to a downloadable file
+   * Creates the database directory if it doesn't exist
+   */
+  private async ensureDatabaseDirectoryExists(): Promise<void> {
+    try {
+      // Check if database directory exists
+      const handle = await window.showDirectoryPicker({
+        id: 'database-dir',
+        startIn: 'documents'
+      });
+      
+      try {
+        // Try to get the database folder
+        await handle.getDirectoryHandle(this.DB_FOLDER_NAME, { create: true });
+        console.log('Database directory exists or was created');
+      } catch (error) {
+        console.error('Failed to create database directory:', error);
+        throw error;
+      }
+    } catch (error) {
+      console.error('Failed to access file system:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Saves the database to a file in the database folder
    */
   async saveToFile(filename: string = 'keyguard-vault.db'): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
@@ -468,15 +458,48 @@ class SQLiteStorage {
       const data = this.db.export();
       const blob = new Blob([data], { type: 'application/x-sqlite3' });
       
-      // Create a download link and trigger it
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      a.click();
+      // Create the database folder if it doesn't exist
+      try {
+        await this.ensureDatabaseDirectoryExists();
+      } catch (error) {
+        // If file system access fails, fall back to direct download
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `database/${filename}`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 100);
+        return;
+      }
       
-      // Clean up
-      setTimeout(() => URL.revokeObjectURL(url), 100);
+      try {
+        // Get the directory handle
+        const dirHandle = await window.showDirectoryPicker({
+          id: 'database-dir',
+          startIn: 'documents'
+        });
+        
+        // Get or create the database folder
+        const dbDirHandle = await dirHandle.getDirectoryHandle(this.DB_FOLDER_NAME, { create: true });
+        
+        // Create or overwrite the file
+        const fileHandle = await dbDirHandle.getFileHandle(filename, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        
+        console.log(`Database saved to ${this.DB_FOLDER_NAME}/${filename}`);
+      } catch (error) {
+        console.error('Error writing to file system:', error);
+        
+        // Fall back to direct download
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `database/${filename}`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 100);
+      }
     } catch (error) {
       console.error('Failed to save database to file:', error);
       throw error;

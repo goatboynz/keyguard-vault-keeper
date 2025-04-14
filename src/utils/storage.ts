@@ -40,13 +40,9 @@ export type CredentialType =
   | 'digital'
   | 'other';
 
-// Note: This class is now deprecated in favor of SQLiteStorage
-// It's kept for reference and backward compatibility
-class LocalStorage {
+// This class is now just a wrapper around SQLiteStorage for backward compatibility
+class StorageService {
   private masterPassword: string | null = null;
-  private readonly MASTER_HASH_KEY = 'vault_master_hash';
-  private readonly PASSWORDS_KEY = 'vault_passwords';
-  private readonly SECURITY_QUESTIONS_KEY = 'vault_security_questions';
   
   /**
    * Sets the master password for the vault
@@ -54,7 +50,6 @@ class LocalStorage {
    */
   async setMasterPassword(password: string): Promise<void> {
     this.masterPassword = password;
-    // Also set in SQLite for compatibility
     await sqliteStorageService.setMasterPassword(password);
   }
   
@@ -71,7 +66,6 @@ class LocalStorage {
    * @returns Whether a master password has been set up
    */
   async hasMasterPasswordSetup(): Promise<boolean> {
-    // Use SQLite service for the actual check
     return await sqliteStorageService.hasMasterPasswordSetup();
   }
   
@@ -80,7 +74,6 @@ class LocalStorage {
    * @returns Whether security questions have been set up
    */
   async hasSecurityQuestions(): Promise<boolean> {
-    // Use SQLite service for the actual check
     return await sqliteStorageService.hasSecurityQuestions();
   }
   
@@ -89,7 +82,6 @@ class LocalStorage {
    * @returns The stored passwords
    */
   async getPasswords(): Promise<PasswordEntry[]> {
-    // Use SQLite service for the actual retrieval
     return await sqliteStorageService.getPasswords();
   }
   
@@ -99,7 +91,6 @@ class LocalStorage {
    * @returns Whether the operation was successful
    */
   async savePasswords(passwords: PasswordEntry[]): Promise<boolean> {
-    // Use SQLite service for the actual saving
     return await sqliteStorageService.savePasswords(passwords);
   }
   
@@ -108,7 +99,6 @@ class LocalStorage {
    * @param hash - The hash of the master password
    */
   async storeMasterPasswordHash(hash: string): Promise<void> {
-    // Use SQLite service for the actual storage
     await sqliteStorageService.storeMasterPasswordHash(hash);
   }
   
@@ -117,7 +107,6 @@ class LocalStorage {
    * @returns The stored master password hash
    */
   async getMasterPasswordHash(): Promise<string | null> {
-    // Use SQLite service for the actual retrieval
     return await sqliteStorageService.getMasterPasswordHash();
   }
   
@@ -127,7 +116,6 @@ class LocalStorage {
    * @returns Whether the operation was successful
    */
   async saveSecurityQuestions(questions: SecurityQuestion[]): Promise<boolean> {
-    // Use SQLite service for the actual saving
     return await sqliteStorageService.saveSecurityQuestions(questions);
   }
   
@@ -136,7 +124,6 @@ class LocalStorage {
    * @returns The stored security questions or null if not found
    */
   async getSecurityQuestions(): Promise<SecurityQuestion[] | null> {
-    // Use SQLite service for the actual retrieval
     return await sqliteStorageService.getSecurityQuestions();
   }
   
@@ -144,9 +131,8 @@ class LocalStorage {
    * Resets the vault
    */
   async resetVault(): Promise<void> {
-    // Use SQLite service for the actual reset
     await sqliteStorageService.resetVault();
   }
 }
 
-export const storageService = new LocalStorage();
+export const storageService = new StorageService();

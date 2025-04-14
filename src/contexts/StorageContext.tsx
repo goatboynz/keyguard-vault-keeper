@@ -36,10 +36,10 @@ export const StorageProvider = ({ children }: { children: ReactNode }) => {
 
   const exportDatabase = async () => {
     try {
-      await sqliteStorageService.saveToFile();
+      await sqliteStorageService.saveToFile('keyguard-vault.db');
       toast({
         title: "Database Exported",
-        description: "Your vault has been exported successfully.",
+        description: "Your vault has been exported to the database folder successfully.",
       });
     } catch (error) {
       console.error('Failed to export database:', error);

@@ -11,6 +11,7 @@ KeyGuard Vault Keeper is a secure password management application that helps you
 
 - **Secure Password Storage**: All passwords are encrypted using AES-256 encryption
 - **SQLite Database**: Credentials stored in a browser-based SQLite database
+- **Database Folder**: Database file saved in a dedicated 'database' folder
 - **Portable Database**: Export and import your vault as a SQLite database file
 - **IndexedDB Persistence**: Database automatically saved to browser storage
 - **Master Password**: Single password to access all your credentials
@@ -30,7 +31,7 @@ KeyGuard Vault Keeper is a secure password management application that helps you
 3. **Add Credentials**: Store website logins, credit cards, secure notes, and more
 4. **Access Anytime**: Unlock your vault with your master password whenever you need to access your credentials
 5. **Search & Filter**: Easily find credentials by searching or filtering by categories
-6. **Export/Import**: Save your database as a file and import it on other devices
+6. **Export/Import**: Save your database as a file in the 'database' folder and import it on other devices
 
 ![Password Management](https://i.imgur.com/dUvSg2N.png)
 
@@ -40,6 +41,7 @@ KeyGuard Vault Keeper uses SQL.js, a JavaScript SQL database engine that runs en
 
 - **Local SQLite Database**: All data is stored in a SQLite database in your browser
 - **IndexedDB Storage**: The database is automatically persisted in the browser's IndexedDB
+- **Database Folder**: The database file is saved in a dedicated 'database' folder for easy access
 - **No Server Required**: The application runs entirely in your browser
 - **Exportable Database**: You can export your database for backup purposes
 - **Importable Database**: You can import a previously exported database
@@ -70,7 +72,7 @@ All data in the database is encrypted using AES-256 encryption with the master p
 
 KeyGuard Vault Keeper supports exporting and importing your database as a file:
 
-- **Export**: Save your entire vault as an encrypted SQLite database file
+- **Export**: Save your entire vault as an encrypted SQLite database file in the 'database' folder
 - **Import**: Load a previously saved vault file to restore your credentials
 - **Automatic Storage**: Your database is automatically saved to IndexedDB in your browser
 
@@ -174,24 +176,16 @@ You can also deploy the built application to:
 KeyGuard Vault Keeper uses a browser-based SQLite database (via SQL.js) to store your credentials. While this provides the benefit of not requiring a server, it's important to understand:
 
 1. The database is stored in your browser's IndexedDB storage
-2. You can export your database as a file for backup or transfer between devices
+2. You can export your database as a file to the 'database' folder for backup or transfer between devices
 3. To access your vault from different devices, export the database file and import it on the other device
 
 ![Database Export](https://i.imgur.com/P3wjQYm.png)
-
-## Data Migration
-
-KeyGuard Vault Keeper includes automatic migration from the previous localStorage-based storage to the new SQLite database:
-
-- If you've used a previous version of the app, your data will be automatically migrated to the SQLite database
-- The migration happens once when you first log in to the new version
-- After migration, all operations will use the SQLite database
 
 ## Portable Usage
 
 To use KeyGuard Vault Keeper across different devices or browsers:
 
-1. Export your database file from your primary device
+1. Export your database file from your primary device to the 'database' folder
 2. Transfer the file to your secondary device (via USB drive, secure cloud storage, etc.)
 3. Open KeyGuard Vault Keeper on your secondary device
 4. Import the database file
