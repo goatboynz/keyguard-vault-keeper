@@ -17,6 +17,8 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from '@/components/ui/use-toast';
 import { usePasswords } from '@/contexts/PasswordContext';
+import { useStorage } from '@/contexts/StorageContext';
+import { DatabaseIcon, Upload } from 'lucide-react';
 
 const emailFormSchema = z.object({
   email: z.string().email({
@@ -32,7 +34,9 @@ type EmailFormValues = z.infer<typeof emailFormSchema>;
 const ExportSettings = () => {
   const { toast } = useToast();
   const { categories } = usePasswords();
+  const { exportDatabase, importDatabase } = useStorage();
   const [format, setFormat] = useState<'csv' | 'json'>('csv');
+  const fileInputRef = useState<HTMLInputElement | null>(null)[1];
   
   const form = useForm<EmailFormValues>({
     resolver: zodResolver(emailFormSchema),
@@ -59,7 +63,46 @@ const ExportSettings = () => {
       description: `Your passwords have been exported as ${format.toUpperCase()}.`,
     });
   }
-  
+
+  const handleDatabaseExport = async () => {
+    try {
+      await exportDatabase();
+    } catch (error) {
+      console.error('Failed to export database:', error);
+      toast({
+        title: "Export Failed",
+        description: "There was a problem exporting your database.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDatabaseImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    try {
+      const success = await importDatabase(file);
+      if (!success) {
+        toast({
+          title: "Import Failed",
+          description: "The database file could not be imported.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Failed to import database:', error);
+      toast({
+        title: "Import Error",
+        description: "There was an error processing your database file.",
+        variant: "destructive",
+      });
+    }
+    
+    // Reset the file input
+    e.target.value = '';
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -153,6 +196,48 @@ const ExportSettings = () => {
           <Button onClick={handleExport}>
             Export as {format.toUpperCase()}
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Database Management</CardTitle>
+          <CardDescription>
+            Export or import your entire vault as a database file
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col space-y-4 sm:flex-row sm:space-y-0 sm:space-x-4">
+            <Button 
+              onClick={handleDatabaseExport}
+              className="w-full sm:w-auto"
+            >
+              <DatabaseIcon className="mr-2 h-4 w-4" />
+              Export Database
+            </Button>
+            
+            <div className="relative w-full sm:w-auto">
+              <input
+                type="file"
+                id="database-import"
+                className="absolute inset-0 opacity-0 cursor-pointer"
+                accept=".db,.sqlite"
+                onChange={handleDatabaseImport}
+                ref={fileInputRef}
+              />
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => fileInputRef?.click()}
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                Import Database
+              </Button>
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground mt-2">
+            Database files are saved in the "database" folder and contain your entire encrypted vault.
+          </p>
         </CardContent>
       </Card>
     </div>

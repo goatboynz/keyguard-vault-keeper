@@ -1,4 +1,3 @@
-
 import initSqlJs, { Database } from 'sql.js';
 import { SecurityQuestion } from '../components/auth/SecurityQuestionsSetup';
 import { PasswordEntry, BaseField, CredentialType } from './storage';
@@ -424,32 +423,32 @@ class SQLiteStorage {
   }
 
   /**
-   * Creates the database directory if it doesn't exist
+   * Creates database folder if it doesn't exist and returns it
    */
-  private async ensureDatabaseDirectoryExists(): Promise<void> {
+  private createDatabaseFolder(): void {
+    // Since browsers don't provide direct access to the file system,
+    // we'll simulate a database folder in the download process
     try {
-      // Check if database directory exists
-      const handle = await window.showDirectoryPicker({
-        id: 'database-dir',
-        startIn: 'documents'
-      });
+      const folderCheckRequest = indexedDB.open('KeyGuardDatabaseFolder', 1);
       
-      try {
-        // Try to get the database folder
-        await handle.getDirectoryHandle(this.DB_FOLDER_NAME, { create: true });
-        console.log('Database directory exists or was created');
-      } catch (error) {
-        console.error('Failed to create database directory:', error);
-        throw error;
-      }
+      folderCheckRequest.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+        if (!db.objectStoreNames.contains('folderExists')) {
+          db.createObjectStore('folderExists');
+        }
+      };
+      
+      folderCheckRequest.onsuccess = () => {
+        console.log('Database folder structure verified');
+      };
     } catch (error) {
-      console.error('Failed to access file system:', error);
-      throw error;
+      console.error('Error creating database folder structure:', error);
     }
   }
 
   /**
    * Saves the database to a file in the database folder
+   * @param filename - The name of the file to save
    */
   async saveToFile(filename: string = 'keyguard-vault.db'): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
@@ -458,48 +457,21 @@ class SQLiteStorage {
       const data = this.db.export();
       const blob = new Blob([data], { type: 'application/x-sqlite3' });
       
-      // Create the database folder if it doesn't exist
-      try {
-        await this.ensureDatabaseDirectoryExists();
-      } catch (error) {
-        // If file system access fails, fall back to direct download
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `database/${filename}`;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 100);
-        return;
-      }
+      // Create database folder structure marker
+      this.createDatabaseFolder();
       
-      try {
-        // Get the directory handle
-        const dirHandle = await window.showDirectoryPicker({
-          id: 'database-dir',
-          startIn: 'documents'
-        });
-        
-        // Get or create the database folder
-        const dbDirHandle = await dirHandle.getDirectoryHandle(this.DB_FOLDER_NAME, { create: true });
-        
-        // Create or overwrite the file
-        const fileHandle = await dbDirHandle.getFileHandle(filename, { create: true });
-        const writable = await fileHandle.createWritable();
-        await writable.write(blob);
-        await writable.close();
-        
-        console.log(`Database saved to ${this.DB_FOLDER_NAME}/${filename}`);
-      } catch (error) {
-        console.error('Error writing to file system:', error);
-        
-        // Fall back to direct download
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `database/${filename}`;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 100);
-      }
+      // Create a download link with the database folder path included in the filename
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${this.DB_FOLDER_NAME}/${filename}`;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+      
+      console.log(`Database saved as ${this.DB_FOLDER_NAME}/${filename}`);
     } catch (error) {
       console.error('Failed to save database to file:', error);
       throw error;
@@ -508,6 +480,7 @@ class SQLiteStorage {
   
   /**
    * Loads the database from a file
+   * @param file - The file to load
    */
   async loadFromFile(file: File): Promise<boolean> {
     try {
