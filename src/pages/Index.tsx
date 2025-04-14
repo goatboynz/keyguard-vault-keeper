@@ -1,12 +1,35 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import { useAuth } from '@/contexts/AuthContext';
+import Login from '@/components/auth/Login';
+import MasterPasswordSetup from '@/components/auth/MasterPasswordSetup';
+import Dashboard from '@/pages/Dashboard';
+import { PasswordProvider } from '@/contexts/PasswordContext';
 
 const Index = () => {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-gray-600">Start building your amazing project here!</p>
+  const { isAuthenticated, isSetup } = useAuth();
+
+  // If authenticated, render the dashboard
+  if (isAuthenticated) {
+    return (
+      <PasswordProvider>
+        <Dashboard />
+      </PasswordProvider>
+    );
+  }
+
+  // If not authenticated but master password is set up, render login
+  if (!isAuthenticated && isSetup) {
+    return (
+      <div className="min-h-screen bg-vault-dark flex flex-col items-center justify-center p-4">
+        <Login />
       </div>
+    );
+  }
+
+  // If not authenticated and no master password is set up, render setup
+  return (
+    <div className="min-h-screen bg-vault-dark flex flex-col items-center justify-center p-4">
+      <MasterPasswordSetup />
     </div>
   );
 };
