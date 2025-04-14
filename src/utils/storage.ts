@@ -102,7 +102,7 @@ class LocalStorage {
    * Resets the vault
    */
   resetVault(): void {
-    localStorage.removeItem(this.MASTER_PASSWORD_KEY);
+    localStorage.removeItem(this.MASTER_HASH_KEY);
     localStorage.removeItem(this.PASSWORDS_KEY);
     this.masterPassword = null;
   }
