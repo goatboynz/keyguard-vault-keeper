@@ -1,5 +1,7 @@
+
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { storageService, PasswordEntry, CredentialType, BaseField } from '../utils/storage';
+import { sqliteStorageService } from '../utils/sqliteStorage';
+import { PasswordEntry, CredentialType, BaseField } from '../utils/storage';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from './AuthContext';
 
@@ -14,9 +16,9 @@ export interface CategoryDefinition {
 
 interface PasswordContextType {
   passwords: PasswordEntry[];
-  addPassword: (password: Omit<PasswordEntry, 'id' | 'lastModified'>) => boolean;
-  updatePassword: (id: string, password: Partial<Omit<PasswordEntry, 'id' | 'lastModified'>>) => boolean;
-  deletePassword: (id: string) => boolean;
+  addPassword: (password: Omit<PasswordEntry, 'id' | 'lastModified'>) => Promise<boolean>;
+  updatePassword: (id: string, password: Partial<Omit<PasswordEntry, 'id' | 'lastModified'>>) => Promise<boolean>;
+  deletePassword: (id: string) => Promise<boolean>;
   getPassword: (id: string) => PasswordEntry | undefined;
   categories: CategoryDefinition[];
   selectedCategory: string;
@@ -73,24 +75,33 @@ export const PasswordProvider = ({ children }: { children: ReactNode }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>('All');
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const { isAuthenticated } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
     if (isAuthenticated) {
-      try {
-        const storedPasswords = storageService.getPasswords();
-        setPasswords(storedPasswords);
-      } catch (error) {
-        console.error('Error loading passwords:', error);
-        toast({
-          title: "Error loading passwords",
-          description: "Failed to load your passwords. Please try logging in again.",
-          variant: "destructive",
-        });
-      }
+      setIsLoading(true);
+      const loadPasswords = async () => {
+        try {
+          const storedPasswords = await sqliteStorageService.getPasswords();
+          setPasswords(storedPasswords);
+        } catch (error) {
+          console.error('Error loading passwords:', error);
+          toast({
+            title: "Error loading passwords",
+            description: "Failed to load your passwords. Please try logging in again.",
+            variant: "destructive",
+          });
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      
+      loadPasswords();
     } else {
       setPasswords([]);
+      setIsLoading(false);
     }
   }, [isAuthenticated, toast]);
   
@@ -98,7 +109,7 @@ export const PasswordProvider = ({ children }: { children: ReactNode }) => {
     return CATEGORIES.find(cat => cat.credentialType === credentialType);
   };
 
-  const addPassword = (password: Omit<PasswordEntry, 'id' | 'lastModified'>): boolean => {
+  const addPassword = async (password: Omit<PasswordEntry, 'id' | 'lastModified'>): Promise<boolean> => {
     try {
       const newPassword: PasswordEntry = {
         ...password,
@@ -107,7 +118,7 @@ export const PasswordProvider = ({ children }: { children: ReactNode }) => {
       };
       
       const updatedPasswords = [...passwords, newPassword];
-      const saved = storageService.savePasswords(updatedPasswords);
+      const saved = await sqliteStorageService.savePasswords(updatedPasswords);
       
       if (saved) {
         setPasswords(updatedPasswords);
@@ -130,10 +141,10 @@ export const PasswordProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updatePassword = (
+  const updatePassword = async (
     id: string, 
     passwordUpdate: Partial<Omit<PasswordEntry, 'id' | 'lastModified'>>
-  ): boolean => {
+  ): Promise<boolean> => {
     try {
       const index = passwords.findIndex(p => p.id === id);
       if (index === -1) return false;
@@ -145,7 +156,7 @@ export const PasswordProvider = ({ children }: { children: ReactNode }) => {
         lastModified: new Date().toISOString()
       };
       
-      const saved = storageService.savePasswords(updatedPasswords);
+      const saved = await sqliteStorageService.savePasswords(updatedPasswords);
       
       if (saved) {
         setPasswords(updatedPasswords);
@@ -168,13 +179,13 @@ export const PasswordProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const deletePassword = (id: string): boolean => {
+  const deletePassword = async (id: string): Promise<boolean> => {
     try {
       const passwordToDelete = passwords.find(p => p.id === id);
       if (!passwordToDelete) return false;
       
       const updatedPasswords = passwords.filter(p => p.id !== id);
-      const saved = storageService.savePasswords(updatedPasswords);
+      const saved = await sqliteStorageService.savePasswords(updatedPasswords);
       
       if (saved) {
         setPasswords(updatedPasswords);
@@ -227,7 +238,17 @@ export const PasswordProvider = ({ children }: { children: ReactNode }) => {
     selectSubcategory,
   };
 
-  return <PasswordContext.Provider value={value}>{children}</PasswordContext.Provider>;
+  return (
+    <PasswordContext.Provider value={value}>
+      {isLoading ? (
+        <div className="flex items-center justify-center h-screen">
+          Loading passwords...
+        </div>
+      ) : (
+        children
+      )}
+    </PasswordContext.Provider>
+  );
 };
 
 export const usePasswords = (): PasswordContextType => {

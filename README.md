@@ -10,6 +10,7 @@ KeyGuard Vault Keeper is a secure password management application that helps you
 ## Features
 
 - **Secure Password Storage**: All passwords are encrypted using AES-256 encryption
+- **SQLite Database**: Credentials stored in a browser-based SQLite database
 - **Master Password**: Single password to access all your credentials
 - **Security Questions**: Set up security questions for master password recovery
 - **Password Organization**: Categorize passwords for easier management
@@ -25,6 +26,15 @@ KeyGuard Vault Keeper is a secure password management application that helps you
 3. **Add Credentials**: Store website logins, credit cards, secure notes, and more
 4. **Access Anytime**: Unlock your vault with your master password whenever you need to access your credentials
 5. **Search & Filter**: Easily find credentials by searching or filtering by categories
+
+## Technical Details
+
+KeyGuard Vault Keeper uses SQL.js, a JavaScript SQL database engine that runs entirely in the browser. This provides the following benefits:
+
+- **Local SQLite Database**: All data is stored in a SQLite database in your browser
+- **No Server Required**: The application runs entirely in your browser
+- **Exportable Database**: You can export your database for backup purposes
+- **Importable Database**: You can import a previously exported database
 
 ## Setup Instructions
 
@@ -116,6 +126,14 @@ You can also deploy the built application to:
 - **GitHub Pages**: Upload the `dist` directory to a GitHub Pages branch
 - **Firebase Hosting**: Use Firebase CLI to deploy the `dist` directory
 
+## Important Note About Data Storage
+
+KeyGuard Vault Keeper uses a browser-based SQLite database (via SQL.js) to store your credentials. While this provides the benefit of not requiring a server, it's important to understand:
+
+1. The data is still stored in your browser's storage (similar to localStorage but as a SQLite database)
+2. To access your vault from different devices or browsers, you'll need to export your database and import it elsewhere
+3. For true multi-device synchronization, consider using the app with a cloud storage solution for your exported database file
+
 ## How to edit this project
 
 There are several ways of editing your application.
@@ -172,6 +190,7 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 - CryptoJS for encryption
+- SQL.js for browser-based SQLite storage
 
 ## Security Considerations
 

@@ -1,4 +1,5 @@
 
+import { StorageProvider } from '@/contexts/StorageContext';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { PasswordProvider } from '@/contexts/PasswordContext';
 import { Toaster } from "@/components/ui/toaster";
@@ -16,20 +17,22 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <AuthProvider>
-        <PasswordProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </PasswordProvider>
-      </AuthProvider>
+      <StorageProvider>
+        <AuthProvider>
+          <PasswordProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </PasswordProvider>
+        </AuthProvider>
+      </StorageProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

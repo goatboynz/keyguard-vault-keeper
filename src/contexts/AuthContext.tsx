@@ -1,7 +1,7 @@
 
 import { createContext, useState, useContext, ReactNode } from 'react';
 import { hashMasterPassword, verifyMasterPassword } from '../utils/encryption';
-import { storageService } from '../utils/storage';
+import { sqliteStorageService } from '../utils/sqliteStorage';
 import { useToast } from '@/components/ui/use-toast';
 import { SecurityQuestion } from '@/components/auth/SecurityQuestionsSetup';
 
@@ -9,38 +9,51 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isSetup: boolean;
   hasSecurityQuestions: boolean;
-  setupMasterPassword: (password: string) => boolean;
-  setupSecurityQuestions: (questions: SecurityQuestion[]) => boolean;
-  getSecurityQuestions: () => SecurityQuestion[] | null;
-  login: (password: string) => boolean;
+  setupMasterPassword: (password: string) => Promise<boolean>;
+  setupSecurityQuestions: (questions: SecurityQuestion[]) => Promise<boolean>;
+  getSecurityQuestions: () => Promise<SecurityQuestion[] | null>;
+  login: (password: string) => Promise<boolean>;
   logout: () => void;
-  resetVault: () => void;
-  updateMasterPassword: (currentPassword: string, newPassword: string) => boolean;
-  resetPasswordWithSecurityQuestions: (newPassword: string) => boolean;
+  resetVault: () => Promise<void>;
+  updateMasterPassword: (currentPassword: string, newPassword: string) => Promise<boolean>;
+  resetPasswordWithSecurityQuestions: (newPassword: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isSetup, setIsSetup] = useState<boolean>(false);
+  const [hasSecurityQs, setHasSecurityQs] = useState<boolean>(false);
   const { toast } = useToast();
-  
-  const isSetup = storageService.hasMasterPasswordSetup();
-  const hasSecurityQuestions = storageService.hasSecurityQuestions();
 
-  const setupMasterPassword = (password: string): boolean => {
+  // Check if master password is set up
+  useState(() => {
+    const checkSetup = async () => {
+      const hasPassword = await sqliteStorageService.hasMasterPasswordSetup();
+      const hasQuestions = await sqliteStorageService.hasSecurityQuestions();
+      setIsSetup(hasPassword);
+      setHasSecurityQs(hasQuestions);
+    };
+    
+    checkSetup();
+  });
+  
+  const setupMasterPassword = async (password: string): Promise<boolean> => {
     try {
       // Hash the master password and store it
       const hash = hashMasterPassword(password);
-      storageService.storeMasterPasswordHash(hash);
+      await sqliteStorageService.storeMasterPasswordHash(hash);
       
       // Set the master password for encryption/decryption
-      storageService.setMasterPassword(password);
+      await sqliteStorageService.setMasterPassword(password);
       
       // Initialize the passwords storage with an empty array
-      storageService.savePasswords([]);
+      await sqliteStorageService.savePasswords([]);
       
       setIsAuthenticated(true);
+      setIsSetup(true);
+      
       toast({
         title: "Vault created successfully",
         description: "Your password vault has been set up. Keep your master password safe!",
@@ -57,12 +70,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const setupSecurityQuestions = (questions: SecurityQuestion[]): boolean => {
+  const setupSecurityQuestions = async (questions: SecurityQuestion[]): Promise<boolean> => {
     try {
       // Store the security questions
-      const success = storageService.saveSecurityQuestions(questions);
+      const success = await sqliteStorageService.saveSecurityQuestions(questions);
       
       if (success) {
+        setHasSecurityQs(true);
         toast({
           title: "Security questions set",
           description: "Your security questions have been saved successfully.",
@@ -81,18 +95,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
   
-  const getSecurityQuestions = (): SecurityQuestion[] | null => {
+  const getSecurityQuestions = async (): Promise<SecurityQuestion[] | null> => {
     try {
-      return storageService.getSecurityQuestions();
+      return await sqliteStorageService.getSecurityQuestions();
     } catch (error) {
       console.error('Error getting security questions:', error);
       return null;
     }
   };
 
-  const login = (password: string): boolean => {
+  const login = async (password: string): Promise<boolean> => {
     try {
-      const storedHash = storageService.getMasterPasswordHash();
+      const storedHash = await sqliteStorageService.getMasterPasswordHash();
       if (!storedHash) {
         toast({
           title: "Error",
@@ -104,7 +118,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       const isValid = verifyMasterPassword(password, storedHash);
       if (isValid) {
-        storageService.setMasterPassword(password);
+        await sqliteStorageService.setMasterPassword(password);
         setIsAuthenticated(true);
         toast({
           title: "Authentication successful",
@@ -131,7 +145,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = (): void => {
-    storageService.clearMasterPassword();
+    sqliteStorageService.clearMasterPassword();
     setIsAuthenticated(false);
     toast({
       title: "Logged out",
@@ -139,10 +153,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  const resetVault = (): void => {
+  const resetVault = async (): Promise<void> => {
     try {
-      storageService.resetVault();
+      await sqliteStorageService.resetVault();
       setIsAuthenticated(false);
+      setIsSetup(false);
+      setHasSecurityQs(false);
       toast({
         title: "Vault reset",
         description: "Your vault has been reset. All data has been removed.",
@@ -157,9 +173,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
   
-  const updateMasterPassword = (currentPassword: string, newPassword: string): boolean => {
+  const updateMasterPassword = async (currentPassword: string, newPassword: string): Promise<boolean> => {
     try {
-      const storedHash = storageService.getMasterPasswordHash();
+      const storedHash = await sqliteStorageService.getMasterPasswordHash();
       if (!storedHash) {
         toast({
           title: "Error",
@@ -181,17 +197,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       
       // Get all passwords with the current password
-      const passwords = storageService.getPasswords();
+      const passwords = await sqliteStorageService.getPasswords();
       
       // Update the master password hash
       const newHash = hashMasterPassword(newPassword);
-      storageService.storeMasterPasswordHash(newHash);
+      await sqliteStorageService.storeMasterPasswordHash(newHash);
       
       // Set the new master password for encryption/decryption
-      storageService.setMasterPassword(newPassword);
+      await sqliteStorageService.setMasterPassword(newPassword);
       
       // Re-save all passwords with the new password
-      storageService.savePasswords(passwords);
+      await sqliteStorageService.savePasswords(passwords);
       
       toast({
         title: "Password updated",
@@ -209,21 +225,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
   
-  const resetPasswordWithSecurityQuestions = (newPassword: string): boolean => {
+  const resetPasswordWithSecurityQuestions = async (newPassword: string): Promise<boolean> => {
     try {
       // Update the master password hash
       const newHash = hashMasterPassword(newPassword);
-      storageService.storeMasterPasswordHash(newHash);
+      await sqliteStorageService.storeMasterPasswordHash(newHash);
       
       // Set the new master password for encryption/decryption
-      storageService.setMasterPassword(newPassword);
+      await sqliteStorageService.setMasterPassword(newPassword);
       
       // Try to decrypt passwords with new password (they might be corrupted)
       try {
-        storageService.getPasswords();
+        await sqliteStorageService.getPasswords();
       } catch (e) {
         // If decryption fails, initialize with empty array
-        storageService.savePasswords([]);
+        await sqliteStorageService.savePasswords([]);
       }
       
       setIsAuthenticated(true);
@@ -247,7 +263,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const value = {
     isAuthenticated,
     isSetup,
-    hasSecurityQuestions,
+    hasSecurityQuestions: hasSecurityQs,
     setupMasterPassword,
     setupSecurityQuestions,
     getSecurityQuestions,
