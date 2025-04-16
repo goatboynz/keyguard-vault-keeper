@@ -1,4 +1,3 @@
-
 import { useState, useRef } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -19,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from '@/components/ui/use-toast';
 import { usePasswords } from '@/contexts/PasswordContext';
 import { useStorage } from '@/contexts/StorageContext';
-import { DatabaseIcon, Upload, CloudSync } from 'lucide-react';
+import { DatabaseIcon, Upload, RefreshCcw } from 'lucide-react';
 
 const emailFormSchema = z.object({
   email: z.string().email({
@@ -261,7 +260,7 @@ const ExportSettings = () => {
               disabled={isSyncing}
               className="w-full sm:w-auto"
             >
-              <CloudSync className="mr-2 h-4 w-4" />
+              <RefreshCcw className="mr-2 h-4 w-4" />
               {isSyncing ? 'Syncing...' : 'Sync with Server'}
             </Button>
           </div>
