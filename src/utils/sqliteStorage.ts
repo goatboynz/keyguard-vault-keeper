@@ -4,6 +4,12 @@ import { SecurityQuestion } from '../components/auth/SecurityQuestionsSetup';
 import { PasswordEntry } from './storage';
 import { encryptData, decryptData } from './encryption';
 
+// Constants
+const DB_NAME = 'keyguard_vault';
+const DB_STORE_NAME = 'sqliteData';
+const DB_KEY = 'database';
+const DB_VERSION = 1;
+
 class SQLiteStorage {
   private db: Database | null = null;
   private masterPassword: string | null = null;
@@ -12,6 +18,7 @@ class SQLiteStorage {
   private readonly SECURITY_QUESTIONS_KEY = 'security_questions';
   private initializationPromise: Promise<void>;
   private readonly DB_FILE_NAME = 'keyguard_vault.db';
+  private readonly DB_PATH = '/src/components/database/';
 
   constructor() {
     this.initializationPromise = this.initDatabase();
@@ -30,17 +37,17 @@ class SQLiteStorage {
       
       let databaseLoaded = false;
       
-      // Try to load database from localStorage if it exists
+      // Try to load database from IndexedDB
       try {
-        const storedDb = localStorage.getItem(this.DB_FILE_NAME);
-        if (storedDb) {
-          const uint8Array = new Uint8Array(JSON.parse(storedDb));
-          this.db = new SQL.Database(uint8Array);
-          console.log('Database loaded from localStorage');
+        const dbData = await this.loadFromIndexedDB();
+        
+        if (dbData) {
+          this.db = new SQL.Database(dbData);
+          console.log('Database loaded from IndexedDB');
           databaseLoaded = true;
         }
       } catch (error) {
-        console.warn('Could not load database from localStorage:', error);
+        console.warn('Could not load database from IndexedDB:', error);
       }
       
       // If still not loaded, create a new database
@@ -65,8 +72,8 @@ class SQLiteStorage {
         
         console.log('New database created');
         
-        // Immediately save the new database to localStorage
-        this.saveToLocalStorage();
+        // Immediately save the new database
+        await this.saveToIndexedDB();
       }
       
       this.initialized = true;
@@ -78,23 +85,140 @@ class SQLiteStorage {
   }
 
   /**
-   * Save database to localStorage
+   * Save database to IndexedDB
    */
-  private saveToLocalStorage(): boolean {
+  private async saveToIndexedDB(): Promise<boolean> {
     if (!this.db) return false;
     
-    try {
-      // Export the database as a Uint8Array
-      const data = this.db.export();
-      
-      // Store in localStorage as a JSON string
-      localStorage.setItem(this.DB_FILE_NAME, JSON.stringify(Array.from(data)));
-      console.log(`Database saved to localStorage`);
-      return true;
-    } catch (error) {
-      console.error('Error saving database to localStorage:', error);
-      return false;
-    }
+    return new Promise((resolve, reject) => {
+      try {
+        // Export the database as a Uint8Array
+        const data = this.db.export();
+        
+        // Open IndexedDB
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        
+        request.onupgradeneeded = (event) => {
+          const db = (event.target as IDBRequest).result;
+          if (!db.objectStoreNames.contains(DB_STORE_NAME)) {
+            db.createObjectStore(DB_STORE_NAME);
+          }
+        };
+        
+        request.onerror = (event) => {
+          console.error('Error opening IndexedDB:', event);
+          reject(new Error('Could not open IndexedDB'));
+        };
+        
+        request.onsuccess = (event) => {
+          const db = (event.target as IDBRequest).result;
+          const transaction = db.transaction([DB_STORE_NAME], 'readwrite');
+          const store = transaction.objectStore(DB_STORE_NAME);
+          
+          // Store the database binary data
+          const putRequest = store.put(data, DB_KEY);
+          
+          putRequest.onsuccess = () => {
+            console.log('Database saved to IndexedDB');
+            resolve(true);
+          };
+          
+          putRequest.onerror = (error) => {
+            console.error('Error saving to IndexedDB:', error);
+            reject(new Error('Failed to save database to IndexedDB'));
+          };
+          
+          transaction.oncomplete = () => {
+            db.close();
+          };
+        };
+      } catch (error) {
+        console.error('Error in saveToIndexedDB:', error);
+        reject(error);
+      }
+    });
+  }
+  
+  /**
+   * Load database from IndexedDB
+   */
+  private async loadFromIndexedDB(): Promise<Uint8Array | null> {
+    return new Promise((resolve, reject) => {
+      try {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        
+        request.onupgradeneeded = (event) => {
+          const db = (event.target as IDBRequest).result;
+          if (!db.objectStoreNames.contains(DB_STORE_NAME)) {
+            db.createObjectStore(DB_STORE_NAME);
+          }
+        };
+        
+        request.onerror = (event) => {
+          console.error('Error opening IndexedDB:', event);
+          reject(new Error('Could not open IndexedDB'));
+        };
+        
+        request.onsuccess = (event) => {
+          const db = (event.target as IDBRequest).result;
+          if (!db.objectStoreNames.contains(DB_STORE_NAME)) {
+            db.close();
+            resolve(null);
+            return;
+          }
+          
+          const transaction = db.transaction([DB_STORE_NAME], 'readonly');
+          const store = transaction.objectStore(DB_STORE_NAME);
+          
+          const getRequest = store.get(DB_KEY);
+          
+          getRequest.onsuccess = (event) => {
+            const data = (event.target as IDBRequest).result;
+            if (data) {
+              resolve(data);
+            } else {
+              resolve(null);
+            }
+          };
+          
+          getRequest.onerror = (error) => {
+            console.error('Error loading from IndexedDB:', error);
+            reject(new Error('Failed to load database from IndexedDB'));
+          };
+          
+          transaction.oncomplete = () => {
+            db.close();
+          };
+        };
+      } catch (error) {
+        console.error('Error in loadFromIndexedDB:', error);
+        reject(error);
+      }
+    });
+  }
+  
+  /**
+   * Delete the database from IndexedDB
+   */
+  private async deleteFromIndexedDB(): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      try {
+        const request = indexedDB.deleteDatabase(DB_NAME);
+        
+        request.onsuccess = () => {
+          console.log('IndexedDB database deleted successfully');
+          resolve(true);
+        };
+        
+        request.onerror = (error) => {
+          console.error('Error deleting IndexedDB database:', error);
+          reject(new Error('Failed to delete IndexedDB database'));
+        };
+      } catch (error) {
+        console.error('Error in deleteFromIndexedDB:', error);
+        reject(error);
+      }
+    });
   }
 
   /**
@@ -120,8 +244,8 @@ class SQLiteStorage {
    * After any operation that modifies data, call this to persist changes
    */
   private async persistChanges(): Promise<void> {
-    // Save to localStorage
-    this.saveToLocalStorage();
+    // Save to IndexedDB
+    await this.saveToIndexedDB();
   }
 
   /**
@@ -377,7 +501,7 @@ class SQLiteStorage {
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 100);
       
-      console.log(`Database saved as ${filename}`);
+      console.log(`Database exported as ${filename}`);
     } catch (error) {
       console.error('Failed to save database to file:', error);
       throw error;
@@ -418,14 +542,14 @@ class SQLiteStorage {
   
   /**
    * Synchronizes the local database with the server
-   * This method is modified to work with localStorage in the browser
+   * This method uses IndexedDB and simulates syncing
    */
   async syncWithServer(): Promise<boolean> {
     try {
       console.log("Simulating sync with server...");
       // In a real implementation, this would communicate with a server
-      // For now, we just ensure the database is persisted to localStorage
-      this.saveToLocalStorage();
+      // For now, we just ensure the database is persisted to IndexedDB
+      await this.persistChanges();
       
       return true;
     } catch (error) {
