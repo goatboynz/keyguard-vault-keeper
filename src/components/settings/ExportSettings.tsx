@@ -1,3 +1,4 @@
+
 import { useState, useRef } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -18,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from '@/components/ui/use-toast';
 import { usePasswords } from '@/contexts/PasswordContext';
 import { useStorage } from '@/contexts/StorageContext';
-import { DatabaseIcon, Upload } from 'lucide-react';
+import { DatabaseIcon, Upload, CloudSync } from 'lucide-react';
 
 const emailFormSchema = z.object({
   email: z.string().email({
@@ -34,7 +35,7 @@ type EmailFormValues = z.infer<typeof emailFormSchema>;
 const ExportSettings = () => {
   const { toast } = useToast();
   const { categories } = usePasswords();
-  const { exportDatabase, importDatabase } = useStorage();
+  const { exportDatabase, importDatabase, syncWithServer, isSyncing } = useStorage();
   const [format, setFormat] = useState<'csv' | 'json'>('csv');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -107,6 +108,19 @@ const ExportSettings = () => {
     }
     
     e.target.value = '';
+  };
+
+  const handleServerSync = async () => {
+    try {
+      await syncWithServer();
+    } catch (error) {
+      console.error('Failed to sync with server:', error);
+      toast({
+        title: "Sync Failed",
+        description: "There was an error synchronizing with the server.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -240,9 +254,20 @@ const ExportSettings = () => {
                 Import Database
               </Button>
             </div>
+            
+            <Button
+              variant="secondary"
+              onClick={handleServerSync}
+              disabled={isSyncing}
+              className="w-full sm:w-auto"
+            >
+              <CloudSync className="mr-2 h-4 w-4" />
+              {isSyncing ? 'Syncing...' : 'Sync with Server'}
+            </Button>
           </div>
           <p className="text-sm text-muted-foreground mt-2">
             Database files are saved in the "database" folder and contain your entire encrypted vault.
+            Sync with server to ensure your vault is available across all your devices.
           </p>
         </CardContent>
       </Card>

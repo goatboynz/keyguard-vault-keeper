@@ -7,12 +7,15 @@ interface StorageContextValue {
   isReady: boolean;
   exportDatabase: () => Promise<void>;
   importDatabase: (file: File) => Promise<boolean>;
+  syncWithServer: () => Promise<boolean>;
+  isSyncing: boolean;
 }
 
 const StorageContext = createContext<StorageContextValue | undefined>(undefined);
 
 export const StorageProvider = ({ children }: { children: ReactNode }) => {
   const [isReady, setIsReady] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -80,8 +83,46 @@ export const StorageProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const syncWithServer = async (): Promise<boolean> => {
+    setIsSyncing(true);
+    try {
+      const success = await sqliteStorageService.syncWithServer();
+      
+      if (success) {
+        toast({
+          title: "Sync Completed",
+          description: "Your vault has been synchronized with the server.",
+        });
+        return true;
+      } else {
+        toast({
+          title: "Sync Failed",
+          description: "Failed to synchronize your vault with the server.",
+          variant: "destructive",
+        });
+        return false;
+      }
+    } catch (error) {
+      console.error('Failed to sync database:', error);
+      toast({
+        title: "Sync Failed",
+        description: "An error occurred during synchronization.",
+        variant: "destructive",
+      });
+      return false;
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
-    <StorageContext.Provider value={{ isReady, exportDatabase, importDatabase }}>
+    <StorageContext.Provider value={{ 
+      isReady, 
+      exportDatabase, 
+      importDatabase,
+      syncWithServer,
+      isSyncing 
+    }}>
       {isReady ? children : (
         <div className="flex flex-col items-center justify-center h-screen">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>

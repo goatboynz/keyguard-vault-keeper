@@ -10,12 +10,22 @@ class SQLiteStorage {
   private readonly MASTER_HASH_KEY = 'master_hash';
   private readonly SECURITY_QUESTIONS_KEY = 'security_questions';
   private initializationPromise: Promise<void>;
-  private readonly DB_FILE_KEY = 'keyguard_db_file';
-  private readonly DB_FILE_NAME = 'vault.db';
+  private readonly DB_FILE_NAME = 'keyguard_vault.db';
   private readonly DB_FOLDER_NAME = 'database';
+  private serverUrl: string | null = null;
 
   constructor() {
+    this.serverUrl = this.getServerUrl();
     this.initializationPromise = this.initDatabase();
+  }
+
+  /**
+   * Get the server URL from environment or config
+   */
+  private getServerUrl(): string | null {
+    // In a real app, this would come from environment variables or config
+    // For now return null, as we'll implement server sync in a future step
+    return null;
   }
 
   /**
@@ -29,14 +39,38 @@ class SQLiteStorage {
         locateFile: file => `https://sql.js.org/dist/${file}`
       });
       
-      // Try to load database from IndexedDB if it exists
-      const existingDbData = await this.loadDatabaseFromStorage();
+      // Try to load database from server first if URL is available
+      let databaseLoaded = false;
       
-      if (existingDbData) {
-        // Create database from existing data
-        this.db = new SQL.Database(existingDbData);
-        console.log('Database loaded from IndexedDB');
-      } else {
+      if (this.serverUrl) {
+        try {
+          const response = await fetch(`${this.serverUrl}/api/database/${this.DB_FILE_NAME}`);
+          if (response.ok) {
+            const arrayBuffer = await response.arrayBuffer();
+            const uint8Array = new Uint8Array(arrayBuffer);
+            this.db = new SQL.Database(uint8Array);
+            console.log('Database loaded from server');
+            databaseLoaded = true;
+          }
+        } catch (error) {
+          console.warn('Could not load database from server:', error);
+        }
+      }
+      
+      // If server load failed, try to load from IndexedDB as fallback
+      if (!databaseLoaded) {
+        const existingDbData = await this.loadDatabaseFromStorage();
+        
+        if (existingDbData) {
+          // Create database from existing data
+          this.db = new SQL.Database(existingDbData);
+          console.log('Database loaded from IndexedDB');
+          databaseLoaded = true;
+        }
+      }
+      
+      // If still not loaded, create a new database
+      if (!databaseLoaded) {
         // Create a new database
         this.db = new SQL.Database();
         
@@ -56,13 +90,17 @@ class SQLiteStorage {
         `);
         
         console.log('New database created');
+        
+        // Immediately save the new database to storage
+        await this.saveDatabaseToStorage();
+        
+        // If server URL is available, also save to server
+        if (this.serverUrl) {
+          await this.saveToServer();
+        }
       }
       
       this.initialized = true;
-      
-      // Save the initial database to IndexedDB
-      await this.saveDatabaseToStorage();
-      
       console.log('SQLite database initialized successfully');
     } catch (error) {
       console.error('Failed to initialize SQLite database:', error);
@@ -71,7 +109,38 @@ class SQLiteStorage {
   }
 
   /**
-   * Save the database to IndexedDB storage
+   * Save the database to the server
+   */
+  private async saveToServer(): Promise<boolean> {
+    if (!this.db || !this.serverUrl) return false;
+    
+    try {
+      const data = this.db.export();
+      const blob = new Blob([data], { type: 'application/x-sqlite3' });
+      
+      const formData = new FormData();
+      formData.append('database', blob, this.DB_FILE_NAME);
+      
+      const response = await fetch(`${this.serverUrl}/api/database/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (response.ok) {
+        console.log('Database saved to server');
+        return true;
+      } else {
+        console.error('Failed to save database to server:', await response.text());
+        return false;
+      }
+    } catch (error) {
+      console.error('Error saving to server:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Save the database to IndexedDB storage as fallback
    */
   private async saveDatabaseToStorage(): Promise<void> {
     if (!this.db) return;
@@ -100,7 +169,7 @@ class SQLiteStorage {
           const transaction = db.transaction(['dbFiles'], 'readwrite');
           const store = transaction.objectStore('dbFiles');
           
-          const storeRequest = store.put(data, this.DB_FILE_KEY);
+          const storeRequest = store.put(data, this.DB_FILE_NAME);
           
           storeRequest.onsuccess = () => {
             console.log('Database saved to IndexedDB');
@@ -150,7 +219,7 @@ class SQLiteStorage {
           const transaction = db.transaction(['dbFiles'], 'readonly');
           const store = transaction.objectStore('dbFiles');
           
-          const getRequest = store.get(this.DB_FILE_KEY);
+          const getRequest = store.get(this.DB_FILE_NAME);
           
           getRequest.onsuccess = () => {
             if (getRequest.result) {
@@ -194,6 +263,19 @@ class SQLiteStorage {
   }
 
   /**
+   * After any operation that modifies data, call this to persist changes
+   */
+  private async persistChanges(): Promise<void> {
+    // Save to local IndexedDB first
+    await this.saveDatabaseToStorage();
+    
+    // Then try to save to server if available
+    if (this.serverUrl) {
+      await this.saveToServer();
+    }
+  }
+
+  /**
    * Gets a value from the settings table
    * @param key - The key to get
    * @returns The value or null if not found
@@ -227,8 +309,8 @@ class SQLiteStorage {
         [key, value]
       );
       
-      // Save database after each setting update
-      await this.saveDatabaseToStorage();
+      // Persist changes
+      await this.persistChanges();
     } catch (error) {
       console.error(`Error setting value for ${key}:`, error);
     }
@@ -312,8 +394,8 @@ class SQLiteStorage {
         ['passwords', encryptedData]
       );
       
-      // Save database after passwords update
-      await this.saveDatabaseToStorage();
+      // Persist changes
+      await this.persistChanges();
       return true;
     } catch (error) {
       console.error('Error saving passwords:', error);
@@ -328,6 +410,7 @@ class SQLiteStorage {
   async storeMasterPasswordHash(hash: string): Promise<void> {
     await this.ensureDbReady();
     await this.setSettingValue(this.MASTER_HASH_KEY, hash);
+    await this.persistChanges();
   }
   
   /**
@@ -349,6 +432,7 @@ class SQLiteStorage {
     
     try {
       await this.setSettingValue(this.SECURITY_QUESTIONS_KEY, JSON.stringify(questions));
+      await this.persistChanges();
       return true;
     } catch (error) {
       console.error('Error saving security questions:', error);
@@ -385,8 +469,8 @@ class SQLiteStorage {
       this.db!.run("DELETE FROM vault_passwords WHERE id = 'passwords'");
       this.masterPassword = null;
       
-      // Save changes to IndexedDB
-      await this.saveDatabaseToStorage();
+      // Persist changes
+      await this.persistChanges();
     } catch (error) {
       console.error('Error resetting vault:', error);
     }
@@ -413,8 +497,8 @@ class SQLiteStorage {
       this.db = new SQL.Database(data);
       this.initialized = true;
       
-      // Save the imported database to IndexedDB
-      await this.saveDatabaseToStorage();
+      // Persist changes
+      await this.persistChanges();
       return true;
     } catch (error) {
       console.error('Error importing database:', error);
@@ -423,31 +507,7 @@ class SQLiteStorage {
   }
 
   /**
-   * Creates database folder if it doesn't exist and returns it
-   */
-  private createDatabaseFolder(): void {
-    // Since browsers don't provide direct access to the file system,
-    // we'll simulate a database folder in the download process
-    try {
-      const folderCheckRequest = indexedDB.open('KeyGuardDatabaseFolder', 1);
-      
-      folderCheckRequest.onupgradeneeded = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-        if (!db.objectStoreNames.contains('folderExists')) {
-          db.createObjectStore('folderExists');
-        }
-      };
-      
-      folderCheckRequest.onsuccess = () => {
-        console.log('Database folder structure verified');
-      };
-    } catch (error) {
-      console.error('Error creating database folder structure:', error);
-    }
-  }
-
-  /**
-   * Saves the database to a file in the database folder
+   * Saves the database to a file
    * @param filename - The name of the file to save
    */
   async saveToFile(filename: string = 'keyguard-vault.db'): Promise<void> {
@@ -457,10 +517,7 @@ class SQLiteStorage {
       const data = this.db.export();
       const blob = new Blob([data], { type: 'application/x-sqlite3' });
       
-      // Create database folder structure marker
-      this.createDatabaseFolder();
-      
-      // Create a download link with the database folder path included in the filename
+      // Create a download link
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -499,6 +556,12 @@ class SQLiteStorage {
       const success = await this.importDatabase(data);
       if (success) {
         console.log('Database loaded from file successfully');
+        
+        // After successful local import, try to save to server if available
+        if (this.serverUrl) {
+          await this.saveToServer();
+        }
+        
         return true;
       } else {
         console.error('Failed to import database from file');
@@ -506,6 +569,48 @@ class SQLiteStorage {
       }
     } catch (error) {
       console.error('Error loading database from file:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * Synchronizes the local database with the server
+   * This would be called periodically or when the app reconnects
+   */
+  async syncWithServer(): Promise<boolean> {
+    if (!this.serverUrl) return false;
+    
+    try {
+      // Get the latest database from the server
+      const response = await fetch(`${this.serverUrl}/api/database/${this.DB_FILE_NAME}`);
+      if (!response.ok) {
+        console.error('Failed to fetch database from server');
+        return false;
+      }
+      
+      const arrayBuffer = await response.arrayBuffer();
+      const serverData = new Uint8Array(arrayBuffer);
+      
+      // Import the server database
+      const SQL = await initSqlJs({
+        locateFile: file => `https://sql.js.org/dist/${file}`
+      });
+      
+      // Save the current database temporarily
+      const currentDb = this.db;
+      
+      // Load the server database
+      this.db = new SQL.Database(serverData);
+      
+      // TODO: Add more sophisticated merge logic if needed
+      
+      // Persist the merged database
+      await this.persistChanges();
+      
+      console.log('Database synchronized with server');
+      return true;
+    } catch (error) {
+      console.error('Error syncing with server:', error);
       return false;
     }
   }
