@@ -1,9 +1,8 @@
+
 import initSqlJs, { Database } from 'sql.js';
 import { SecurityQuestion } from '../components/auth/SecurityQuestionsSetup';
-import { PasswordEntry, BaseField, CredentialType } from './storage';
+import { PasswordEntry } from './storage';
 import { encryptData, decryptData } from './encryption';
-import path from 'path';
-import fs from 'fs';
 
 class SQLiteStorage {
   private db: Database | null = null;
@@ -13,40 +12,9 @@ class SQLiteStorage {
   private readonly SECURITY_QUESTIONS_KEY = 'security_questions';
   private initializationPromise: Promise<void>;
   private readonly DB_FILE_NAME = 'keyguard_vault.db';
-  private readonly DB_FOLDER_PATH = './src/components/database';
-  private readonly DB_FILE_PATH: string;
-  private serverUrl: string | null = null;
 
   constructor() {
-    // Create full path to database file
-    this.DB_FILE_PATH = `${this.DB_FOLDER_PATH}/${this.DB_FILE_NAME}`;
-    this.serverUrl = this.getServerUrl();
     this.initializationPromise = this.initDatabase();
-  }
-
-  /**
-   * Get the server URL from environment or config
-   */
-  private getServerUrl(): string | null {
-    // In a real app, this would come from environment variables or config
-    // For now return null, as we'll implement server sync in a future step
-    return null;
-  }
-
-  /**
-   * Ensures the database directory exists
-   */
-  private ensureDatabaseDirExists(): void {
-    try {
-      // Create directory if it doesn't exist
-      if (!fs.existsSync(this.DB_FOLDER_PATH)) {
-        fs.mkdirSync(this.DB_FOLDER_PATH, { recursive: true });
-        console.log(`Created database directory at ${this.DB_FOLDER_PATH}`);
-      }
-    } catch (error) {
-      console.error('Error creating database directory:', error);
-      throw error;
-    }
   }
 
   /**
@@ -60,44 +28,19 @@ class SQLiteStorage {
         locateFile: file => `https://sql.js.org/dist/${file}`
       });
       
-      // Ensure database directory exists
-      this.ensureDatabaseDirExists();
-      
       let databaseLoaded = false;
       
-      // Try to load database from server first if URL is available
-      if (this.serverUrl) {
-        try {
-          const response = await fetch(`${this.serverUrl}/api/database/${this.DB_FILE_NAME}`);
-          if (response.ok) {
-            const arrayBuffer = await response.arrayBuffer();
-            const uint8Array = new Uint8Array(arrayBuffer);
-            this.db = new SQL.Database(uint8Array);
-            console.log('Database loaded from server');
-            databaseLoaded = true;
-            
-            // Save the database locally
-            this.saveToFileSystem();
-          }
-        } catch (error) {
-          console.warn('Could not load database from server:', error);
+      // Try to load database from localStorage if it exists
+      try {
+        const storedDb = localStorage.getItem(this.DB_FILE_NAME);
+        if (storedDb) {
+          const uint8Array = new Uint8Array(JSON.parse(storedDb));
+          this.db = new SQL.Database(uint8Array);
+          console.log('Database loaded from localStorage');
+          databaseLoaded = true;
         }
-      }
-      
-      // If server load failed, try to load from file system
-      if (!databaseLoaded) {
-        try {
-          // Check if database file exists
-          if (fs.existsSync(this.DB_FILE_PATH)) {
-            const data = fs.readFileSync(this.DB_FILE_PATH);
-            const uint8Array = new Uint8Array(data);
-            this.db = new SQL.Database(uint8Array);
-            console.log(`Database loaded from ${this.DB_FILE_PATH}`);
-            databaseLoaded = true;
-          }
-        } catch (error) {
-          console.warn('Could not load database from file system:', error);
-        }
+      } catch (error) {
+        console.warn('Could not load database from localStorage:', error);
       }
       
       // If still not loaded, create a new database
@@ -122,13 +65,8 @@ class SQLiteStorage {
         
         console.log('New database created');
         
-        // Immediately save the new database to file system
-        this.saveToFileSystem();
-        
-        // If server URL is available, also save to server
-        if (this.serverUrl) {
-          await this.saveToServer();
-        }
+        // Immediately save the new database to localStorage
+        this.saveToLocalStorage();
       }
       
       this.initialized = true;
@@ -140,55 +78,21 @@ class SQLiteStorage {
   }
 
   /**
-   * Save the database to the server
+   * Save database to localStorage
    */
-  private async saveToServer(): Promise<boolean> {
-    if (!this.db || !this.serverUrl) return false;
-    
-    try {
-      const data = this.db.export();
-      const blob = new Blob([data], { type: 'application/x-sqlite3' });
-      
-      const formData = new FormData();
-      formData.append('database', blob, this.DB_FILE_NAME);
-      
-      const response = await fetch(`${this.serverUrl}/api/database/upload`, {
-        method: 'POST',
-        body: formData,
-      });
-      
-      if (response.ok) {
-        console.log('Database saved to server');
-        return true;
-      } else {
-        console.error('Failed to save database to server:', await response.text());
-        return false;
-      }
-    } catch (error) {
-      console.error('Error saving to server:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Save database to the file system
-   */
-  private saveToFileSystem(): boolean {
+  private saveToLocalStorage(): boolean {
     if (!this.db) return false;
     
     try {
       // Export the database as a Uint8Array
       const data = this.db.export();
       
-      // Ensure directory exists
-      this.ensureDatabaseDirExists();
-      
-      // Write the database file
-      fs.writeFileSync(this.DB_FILE_PATH, Buffer.from(data));
-      console.log(`Database saved to ${this.DB_FILE_PATH}`);
+      // Store in localStorage as a JSON string
+      localStorage.setItem(this.DB_FILE_NAME, JSON.stringify(Array.from(data)));
+      console.log(`Database saved to localStorage`);
       return true;
     } catch (error) {
-      console.error('Error saving database to file system:', error);
+      console.error('Error saving database to localStorage:', error);
       return false;
     }
   }
@@ -216,13 +120,8 @@ class SQLiteStorage {
    * After any operation that modifies data, call this to persist changes
    */
   private async persistChanges(): Promise<void> {
-    // Save to file system first
-    this.saveToFileSystem();
-    
-    // Then try to save to server if available
-    if (this.serverUrl) {
-      await this.saveToServer();
-    }
+    // Save to localStorage
+    this.saveToLocalStorage();
   }
 
   /**
@@ -457,7 +356,7 @@ class SQLiteStorage {
   }
 
   /**
-   * Saves the database to a file
+   * Saves the database to a file for download
    * @param filename - The name of the file to save
    */
   async saveToFile(filename: string = 'keyguard-vault.db'): Promise<void> {
@@ -471,14 +370,14 @@ class SQLiteStorage {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${this.DB_FOLDER_PATH}/${filename}`;
+      a.download = filename;
       a.style.display = 'none';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 100);
       
-      console.log(`Database saved as ${this.DB_FOLDER_PATH}/${filename}`);
+      console.log(`Database saved as ${filename}`);
     } catch (error) {
       console.error('Failed to save database to file:', error);
       throw error;
@@ -506,15 +405,6 @@ class SQLiteStorage {
       const success = await this.importDatabase(data);
       if (success) {
         console.log('Database loaded from file successfully');
-        
-        // After successful import, save to file system
-        this.saveToFileSystem();
-        
-        // After successful local import, try to save to server if available
-        if (this.serverUrl) {
-          await this.saveToServer();
-        }
-        
         return true;
       } else {
         console.error('Failed to import database from file');
@@ -528,39 +418,15 @@ class SQLiteStorage {
   
   /**
    * Synchronizes the local database with the server
-   * This would be called periodically or when the app reconnects
+   * This method is modified to work with localStorage in the browser
    */
   async syncWithServer(): Promise<boolean> {
-    if (!this.serverUrl) return false;
-    
     try {
-      // Get the latest database from the server
-      const response = await fetch(`${this.serverUrl}/api/database/${this.DB_FILE_NAME}`);
-      if (!response.ok) {
-        console.error('Failed to fetch database from server');
-        return false;
-      }
+      console.log("Simulating sync with server...");
+      // In a real implementation, this would communicate with a server
+      // For now, we just ensure the database is persisted to localStorage
+      this.saveToLocalStorage();
       
-      const arrayBuffer = await response.arrayBuffer();
-      const serverData = new Uint8Array(arrayBuffer);
-      
-      // Import the server database
-      const SQL = await initSqlJs({
-        locateFile: file => `https://sql.js.org/dist/${file}`
-      });
-      
-      // Save the current database temporarily
-      const currentDb = this.db;
-      
-      // Load the server database
-      this.db = new SQL.Database(serverData);
-      
-      // TODO: Add more sophisticated merge logic if needed
-      
-      // Persist the merged database
-      await this.persistChanges();
-      
-      console.log('Database synchronized with server');
       return true;
     } catch (error) {
       console.error('Error syncing with server:', error);

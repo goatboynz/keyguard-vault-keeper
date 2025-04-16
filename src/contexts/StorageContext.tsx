@@ -21,7 +21,7 @@ export const StorageProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const initializeStorage = async () => {
       try {
-        // We need to wait for the SQLite database file to be ready
+        // We need to wait for the SQLite database to be ready
         await sqliteStorageService.ensureDbReady();
         setIsReady(true);
       } catch (error) {
@@ -42,7 +42,7 @@ export const StorageProvider = ({ children }: { children: ReactNode }) => {
       await sqliteStorageService.saveToFile('keyguard-vault.db');
       toast({
         title: "Database Exported",
-        description: "Your vault has been exported to the database folder successfully.",
+        description: "Your vault has been exported successfully.",
       });
     } catch (error) {
       console.error('Failed to export database:', error);
@@ -91,13 +91,13 @@ export const StorageProvider = ({ children }: { children: ReactNode }) => {
       if (success) {
         toast({
           title: "Sync Completed",
-          description: "Your vault has been synchronized with the server.",
+          description: "Your vault has been synchronized successfully.",
         });
         return true;
       } else {
         toast({
           title: "Sync Failed",
-          description: "Failed to synchronize your vault with the server.",
+          description: "Failed to synchronize your vault.",
           variant: "destructive",
         });
         return false;
