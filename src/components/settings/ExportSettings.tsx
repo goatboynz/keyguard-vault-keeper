@@ -1,4 +1,5 @@
-import { useState } from 'react';
+
+import { useState, useRef } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -36,7 +37,7 @@ const ExportSettings = () => {
   const { categories } = usePasswords();
   const { exportDatabase, importDatabase } = useStorage();
   const [format, setFormat] = useState<'csv' | 'json'>('csv');
-  const fileInputRef = useState<HTMLInputElement | null>(null)[1];
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const form = useForm<EmailFormValues>({
     resolver: zodResolver(emailFormSchema),
@@ -228,7 +229,7 @@ const ExportSettings = () => {
               <Button 
                 variant="outline" 
                 className="w-full"
-                onClick={() => fileInputRef?.click()}
+                onClick={() => fileInputRef.current?.click()}
               >
                 <Upload className="mr-2 h-4 w-4" />
                 Import Database
