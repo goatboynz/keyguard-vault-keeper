@@ -1,4 +1,3 @@
-
 import { useState, useRef } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -48,7 +47,6 @@ const ExportSettings = () => {
   });
   
   function onSubmit(data: EmailFormValues) {
-    // Here you would handle sending the email with passwords
     console.log("Email password export requested:", data);
     toast({
       title: "Export initiated",
@@ -58,7 +56,6 @@ const ExportSettings = () => {
   }
   
   function handleExport() {
-    // Here you would handle exporting the passwords to a file
     toast({
       title: "Export successful",
       description: `Your passwords have been exported as ${format.toUpperCase()}.`,
@@ -68,6 +65,10 @@ const ExportSettings = () => {
   const handleDatabaseExport = async () => {
     try {
       await exportDatabase();
+      toast({
+        title: "Database Exported",
+        description: "Your vault has been exported to the database folder.",
+      });
     } catch (error) {
       console.error('Failed to export database:', error);
       toast({
@@ -84,7 +85,12 @@ const ExportSettings = () => {
     
     try {
       const success = await importDatabase(file);
-      if (!success) {
+      if (success) {
+        toast({
+          title: "Database Imported",
+          description: "Your vault has been successfully imported.",
+        });
+      } else {
         toast({
           title: "Import Failed",
           description: "The database file could not be imported.",
@@ -100,7 +106,6 @@ const ExportSettings = () => {
       });
     }
     
-    // Reset the file input
     e.target.value = '';
   };
 
