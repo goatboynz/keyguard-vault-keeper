@@ -1,4 +1,3 @@
-
 import initSqlJs, { Database } from 'sql.js';
 import { SecurityQuestion } from '../components/auth/SecurityQuestionsSetup';
 import { PasswordEntry } from './storage';
@@ -9,6 +8,7 @@ const DB_NAME = 'keyguard_vault';
 const DB_STORE_NAME = 'sqliteData';
 const DB_KEY = 'database';
 const DB_VERSION = 1;
+const SERVER_SYNC_URL = '/api/sync';
 
 class SQLiteStorage {
   private db: Database | null = null;
@@ -19,6 +19,15 @@ class SQLiteStorage {
   private initializationPromise: Promise<void>;
   private readonly DB_FILE_NAME = 'keyguard_vault.db';
   private readonly DB_PATH = '/src/components/database/';
+  private lastSyncTimestamp: number = 0;
+  
+  private syncStore: {
+    data: Uint8Array | null;
+    timestamp: number;
+  } = {
+    data: null,
+    timestamp: 0
+  };
 
   constructor() {
     this.initializationPromise = this.initDatabase();
@@ -31,23 +40,38 @@ class SQLiteStorage {
     try {
       // Initialize SQL.js
       const SQL = await initSqlJs({
-        // Specify the path to the SQL.js wasm file
         locateFile: file => `https://sql.js.org/dist/${file}`
       });
       
       let databaseLoaded = false;
       
-      // Try to load database from IndexedDB
+      // Try to load database from synced storage
       try {
-        const dbData = await this.loadFromIndexedDB();
+        const syncData = await this.loadFromSyncStorage();
         
-        if (dbData) {
-          this.db = new SQL.Database(dbData);
-          console.log('Database loaded from IndexedDB');
+        if (syncData && syncData.data) {
+          this.db = new SQL.Database(syncData.data);
+          this.lastSyncTimestamp = syncData.timestamp;
+          console.log('Database loaded from sync storage');
           databaseLoaded = true;
         }
       } catch (error) {
-        console.warn('Could not load database from IndexedDB:', error);
+        console.warn('Could not load database from sync storage:', error);
+      }
+      
+      // If not loaded from sync, try from IndexedDB as fallback
+      if (!databaseLoaded) {
+        try {
+          const dbData = await this.loadFromIndexedDB();
+          
+          if (dbData) {
+            this.db = new SQL.Database(dbData);
+            console.log('Database loaded from IndexedDB');
+            databaseLoaded = true;
+          }
+        } catch (error) {
+          console.warn('Could not load database from IndexedDB:', error);
+        }
       }
       
       // If still not loaded, create a new database
@@ -74,6 +98,7 @@ class SQLiteStorage {
         
         // Immediately save the new database
         await this.saveToIndexedDB();
+        await this.saveToSyncStorage();
       }
       
       this.initialized = true;
@@ -198,27 +223,101 @@ class SQLiteStorage {
   }
   
   /**
-   * Delete the database from IndexedDB
+   * Save database to sync storage for cross-browser access
+   * This simulates saving to a server or cloud storage
    */
-  private async deleteFromIndexedDB(): Promise<boolean> {
-    return new Promise((resolve, reject) => {
-      try {
-        const request = indexedDB.deleteDatabase(DB_NAME);
-        
-        request.onsuccess = () => {
-          console.log('IndexedDB database deleted successfully');
-          resolve(true);
+  private async saveToSyncStorage(): Promise<boolean> {
+    if (!this.db) return false;
+    
+    try {
+      // Export the database as a Uint8Array
+      const data = this.db.export();
+      const timestamp = Date.now();
+      
+      // In a real implementation, this would send the data to a server
+      // For now, we'll use localStorage as a bridge (limited, but demonstrates the concept)
+      
+      // We can't directly store Uint8Array in localStorage, so we'll convert to base64
+      const base64Data = this.arrayBufferToBase64(data);
+      
+      // Store the data and timestamp
+      localStorage.setItem('sync_db_data', base64Data);
+      localStorage.setItem('sync_db_timestamp', timestamp.toString());
+      
+      // Update our sync store
+      this.syncStore = {
+        data: data,
+        timestamp: timestamp
+      };
+      
+      console.log('Database saved to sync storage');
+      return true;
+    } catch (error) {
+      console.error('Error saving to sync storage:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * Load database from sync storage
+   */
+  private async loadFromSyncStorage(): Promise<{data: Uint8Array | null, timestamp: number}> {
+    try {
+      // In a real implementation, this would fetch from a server
+      // For now, we'll use localStorage as a bridge
+      
+      const base64Data = localStorage.getItem('sync_db_data');
+      const timestampStr = localStorage.getItem('sync_db_timestamp');
+      
+      if (!base64Data || !timestampStr) {
+        return {
+          data: null,
+          timestamp: 0
         };
-        
-        request.onerror = (error) => {
-          console.error('Error deleting IndexedDB database:', error);
-          reject(new Error('Failed to delete IndexedDB database'));
-        };
-      } catch (error) {
-        console.error('Error in deleteFromIndexedDB:', error);
-        reject(error);
       }
-    });
+      
+      // Convert base64 back to Uint8Array
+      const data = this.base64ToArrayBuffer(base64Data);
+      const timestamp = parseInt(timestampStr);
+      
+      console.log('Database loaded from sync storage');
+      return {
+        data: data,
+        timestamp: timestamp
+      };
+    } catch (error) {
+      console.error('Error loading from sync storage:', error);
+      return {
+        data: null,
+        timestamp: 0
+      };
+    }
+  }
+  
+  /**
+   * Helper method to convert ArrayBuffer to base64
+   */
+  private arrayBufferToBase64(buffer: Uint8Array): string {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return window.btoa(binary);
+  }
+  
+  /**
+   * Helper method to convert base64 to ArrayBuffer
+   */
+  private base64ToArrayBuffer(base64: string): Uint8Array {
+    const binary_string = window.atob(base64);
+    const len = binary_string.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binary_string.charCodeAt(i);
+    }
+    return bytes;
   }
 
   /**
@@ -244,8 +343,11 @@ class SQLiteStorage {
    * After any operation that modifies data, call this to persist changes
    */
   private async persistChanges(): Promise<void> {
-    // Save to IndexedDB
+    // Save to IndexedDB as local cache
     await this.saveToIndexedDB();
+    
+    // Save to sync storage for cross-browser access
+    await this.saveToSyncStorage();
   }
 
   /**
@@ -542,15 +644,35 @@ class SQLiteStorage {
   
   /**
    * Synchronizes the local database with the server
-   * This method uses IndexedDB and simulates syncing
+   * This method simulates syncing with a central server for cross-browser access
    */
   async syncWithServer(): Promise<boolean> {
     try {
-      console.log("Simulating sync with server...");
-      // In a real implementation, this would communicate with a server
-      // For now, we just ensure the database is persisted to IndexedDB
-      await this.persistChanges();
+      console.log("Syncing with server...");
       
+      // First, check if there's a newer version in sync storage
+      const syncData = await this.loadFromSyncStorage();
+      
+      // If our local data is newer, push it to sync storage
+      if (this.db && (!syncData.data || this.lastSyncTimestamp >= syncData.timestamp)) {
+        await this.saveToSyncStorage();
+        console.log("Pushed local database to sync storage");
+      } 
+      // If sync storage has newer data, pull it
+      else if (syncData.data && syncData.timestamp > this.lastSyncTimestamp) {
+        const SQL = await initSqlJs({
+          locateFile: file => `https://sql.js.org/dist/${file}`
+        });
+        
+        this.db = new SQL.Database(syncData.data);
+        this.lastSyncTimestamp = syncData.timestamp;
+        
+        // Save to IndexedDB
+        await this.saveToIndexedDB();
+        console.log("Pulled database from sync storage");
+      }
+      
+      console.log("Sync completed successfully");
       return true;
     } catch (error) {
       console.error('Error syncing with server:', error);

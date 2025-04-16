@@ -9,6 +9,7 @@ interface StorageContextValue {
   importDatabase: (file: File) => Promise<boolean>;
   syncWithServer: () => Promise<boolean>;
   isSyncing: boolean;
+  lastSyncTime: Date | null;
 }
 
 const StorageContext = createContext<StorageContextValue | undefined>(undefined);
@@ -16,7 +17,26 @@ const StorageContext = createContext<StorageContextValue | undefined>(undefined)
 export const StorageProvider = ({ children }: { children: ReactNode }) => {
   const [isReady, setIsReady] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const { toast } = useToast();
+  
+  // Set up periodic synchronization
+  useEffect(() => {
+    let syncInterval: number;
+    
+    if (isReady) {
+      // Sync every 5 minutes
+      syncInterval = window.setInterval(() => {
+        syncWithServer(true);
+      }, 5 * 60 * 1000);
+    }
+    
+    return () => {
+      if (syncInterval) {
+        clearInterval(syncInterval);
+      }
+    };
+  }, [isReady]);
 
   useEffect(() => {
     const initializeStorage = async () => {
@@ -24,6 +44,9 @@ export const StorageProvider = ({ children }: { children: ReactNode }) => {
         // We need to wait for the SQLite database to be ready
         await sqliteStorageService.ensureDbReady();
         setIsReady(true);
+        
+        // Initial sync when the app starts
+        syncWithServer(true);
       } catch (error) {
         console.error('Failed to initialize storage:', error);
         toast({
@@ -63,6 +86,10 @@ export const StorageProvider = ({ children }: { children: ReactNode }) => {
           title: "Database Imported",
           description: "Your vault has been imported successfully.",
         });
+        
+        // Sync newly imported database
+        await syncWithServer(false);
+        
         return true;
       } else {
         toast({
@@ -83,32 +110,43 @@ export const StorageProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const syncWithServer = async (): Promise<boolean> => {
+  const syncWithServer = async (silent: boolean = false): Promise<boolean> => {
+    if (isSyncing) return false;
+    
     setIsSyncing(true);
     try {
       const success = await sqliteStorageService.syncWithServer();
       
       if (success) {
-        toast({
-          title: "Sync Completed",
-          description: "Your vault has been synchronized successfully.",
-        });
+        const now = new Date();
+        setLastSyncTime(now);
+        
+        if (!silent) {
+          toast({
+            title: "Sync Completed",
+            description: "Your vault has been synchronized successfully.",
+          });
+        }
         return true;
       } else {
-        toast({
-          title: "Sync Failed",
-          description: "Failed to synchronize your vault.",
-          variant: "destructive",
-        });
+        if (!silent) {
+          toast({
+            title: "Sync Failed",
+            description: "Failed to synchronize your vault.",
+            variant: "destructive",
+          });
+        }
         return false;
       }
     } catch (error) {
       console.error('Failed to sync database:', error);
-      toast({
-        title: "Sync Failed",
-        description: "An error occurred during synchronization.",
-        variant: "destructive",
-      });
+      if (!silent) {
+        toast({
+          title: "Sync Failed",
+          description: "An error occurred during synchronization.",
+          variant: "destructive",
+        });
+      }
       return false;
     } finally {
       setIsSyncing(false);
@@ -120,8 +158,9 @@ export const StorageProvider = ({ children }: { children: ReactNode }) => {
       isReady, 
       exportDatabase, 
       importDatabase,
-      syncWithServer,
-      isSyncing 
+      syncWithServer: () => syncWithServer(false),
+      isSyncing,
+      lastSyncTime
     }}>
       {isReady ? children : (
         <div className="flex flex-col items-center justify-center h-screen">

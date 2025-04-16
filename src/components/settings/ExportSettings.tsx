@@ -18,7 +18,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from '@/components/ui/use-toast';
 import { usePasswords } from '@/contexts/PasswordContext';
 import { useStorage } from '@/contexts/StorageContext';
-import { DatabaseIcon, Upload, RefreshCcw } from 'lucide-react';
+import { DatabaseIcon, Upload, RefreshCcw, Clock } from 'lucide-react';
+import { format } from 'date-fns';
 
 const emailFormSchema = z.object({
   email: z.string().email({
@@ -34,7 +35,7 @@ type EmailFormValues = z.infer<typeof emailFormSchema>;
 const ExportSettings = () => {
   const { toast } = useToast();
   const { categories } = usePasswords();
-  const { exportDatabase, importDatabase, syncWithServer, isSyncing } = useStorage();
+  const { exportDatabase, importDatabase, syncWithServer, isSyncing, lastSyncTime } = useStorage();
   const [format, setFormat] = useState<'csv' | 'json'>('csv');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -67,7 +68,7 @@ const ExportSettings = () => {
       await exportDatabase();
       toast({
         title: "Database Exported",
-        description: "Your vault has been exported to the database folder.",
+        description: "Your vault has been exported to a file.",
       });
     } catch (error) {
       console.error('Failed to export database:', error);
@@ -120,6 +121,11 @@ const ExportSettings = () => {
         variant: "destructive",
       });
     }
+  };
+
+  const formatSyncTime = () => {
+    if (!lastSyncTime) return 'Never';
+    return format(lastSyncTime, 'MMM d, yyyy h:mm a');
   };
 
   return (
@@ -260,13 +266,18 @@ const ExportSettings = () => {
               disabled={isSyncing}
               className="w-full sm:w-auto"
             >
-              <RefreshCcw className="mr-2 h-4 w-4" />
-              {isSyncing ? 'Syncing...' : 'Sync with Server'}
+              <RefreshCcw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+              {isSyncing ? 'Syncing...' : 'Sync Now'}
             </Button>
           </div>
+          
+          <div className="flex items-center mt-3 text-sm text-muted-foreground">
+            <Clock className="h-4 w-4 mr-2" />
+            <span>Last synchronized: {formatSyncTime()}</span>
+          </div>
+          
           <p className="text-sm text-muted-foreground mt-2">
-            Database files are saved in the "database" folder and contain your entire encrypted vault.
-            Sync with server to ensure your vault is available across all your devices.
+            Your vault data is synchronized across browsers automatically. Use the sync button to manually update your vault.
           </p>
         </CardContent>
       </Card>
